@@ -2,7 +2,7 @@
   "heroSub": "A story written in moments",
   "heroTitle": "چیرۆکەکەمان",
   "yourName": "Rauan",
-  "herName": "Sheua",
+  "herName": "Sheuakam",
   "startDate": "2026-06-19T21:39:00",
   "startDateLabel": "La  19/6/2026",
   "quote": "\"لەم دنیا کاتییەدا تۆ هەموو شتێکی منی.\"",
@@ -25,7 +25,12 @@
   "songTitle": "گۆرانی",
   "songFile": "",
   "moments": [
-    { "date": "June 2026", "title": "ئەو بەروارەی یەکمان تیا ناسی", "text": "هێشتا بیرمە چەند نازت ئەکرد بەسەرما ئەوکاتە.", "photo": "" }
+    {
+      "date": "June 2026",
+      "title": "ئەو بەروارەی یەکمان تیا ناسی",
+      "text": "هێشتا بیرمە چەند نازت ئەکرد بەسەرما ئەوکاتە.",
+      "photo": ""
+    }
   ],
   "gallery": []
 }
