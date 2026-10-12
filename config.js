@@ -17,11 +17,11 @@ const CONFIG = {
 
   // 🔒 Your fine-grained Personal Access Token.
   //    Format: github_pat_xxxxxxxxxxxxxxxxxxxxxx
-  token: "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",
+  token: "",
 
   // Optional: a secret word. If set, the edit UI only appears
   // when the URL ends with ?edit=YOURWORD
-  editKey: "",
+  editKey: "1",
 
   // Path where story.json lives in the repo (don't change)
   storyPath: "story.json",
