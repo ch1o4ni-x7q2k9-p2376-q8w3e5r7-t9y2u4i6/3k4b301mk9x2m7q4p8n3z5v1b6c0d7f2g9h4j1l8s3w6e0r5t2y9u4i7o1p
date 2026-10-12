@@ -17,7 +17,7 @@ const CONFIG = {
 
   // 🔒 Your fine-grained Personal Access Token.
   //    Format: github_pat_xxxxxxxxxxxxxxxxxxxxxx
-  token: "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",
+  token: "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",
 
   // Optional: a secret word. If set, the edit UI only appears
   // when the URL ends with ?edit=YOURWORD
