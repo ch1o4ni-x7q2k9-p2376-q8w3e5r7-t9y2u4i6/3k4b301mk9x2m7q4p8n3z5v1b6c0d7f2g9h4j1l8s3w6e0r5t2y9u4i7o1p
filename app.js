@@ -143,19 +143,21 @@ function renderAll() {
     const el = document.createElement("div");
     el.className = "moment";
     el.dataset.index = i;
-    el.innerHTML = `
-      <div class="moment-card">
-        <button class="moment-remove" data-act="rm-moment" data-i="${i}">✕</button>
-        <div class="image-picker" data-act="pick-moment" data-i="${i}">📷 Change photo</div>
-        ${m.photo
-          ? `<img class="moment-img" src="${m.photo}" alt="">`
-          : `<div class="moment-img" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;">📷 No photo yet</div>`}
-        <span class="moment-date editable" data-key="moments.${i}.date">${esc(m.date)}</span>
-        <h3 class="moment-title editable" data-key="moments.${i}.title">${esc(m.title)}</h3>
-        <p class="moment-text editable" data-key="moments.${i}.text">${esc(m.text)}</p>
-      </div>
-      <div class="moment-dot"></div>
-    `;
+   el.innerHTML = `
+  <div class="moment-card">
+    <button class="moment-remove" data-act="rm-moment" data-i="${i}">✕</button>
+    <div class="moment-photo-wrap">
+      <div class="image-picker" data-act="pick-moment" data-i="${i}">📷 Click to change photo</div>
+      ${m.photo
+        ? `<img class="moment-img" src="${m.photo}" alt="">`
+        : `<div class="moment-img" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;">📷 No photo yet</div>`}
+    </div>
+    <span class="moment-date editable" data-key="moments.${i}.date">${esc(m.date)}</span>
+    <h3 class="moment-title editable" data-key="moments.${i}.title">${esc(m.title)}</h3>
+    <p class="moment-text editable" data-key="moments.${i}.text">${esc(m.text)}</p>
+  </div>
+  <div class="moment-dot"></div>
+`;
     tl.appendChild(el);
   });
 
