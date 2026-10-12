@@ -1,21 +1,55 @@
 // ═══════════════════════════════════════════════════════════
 //  Our Story — reader + in-page editor
-//  Reads story.json from GitHub, renders it, and (if the token
-//  is configured) lets you edit and commit changes back.
+//  Token is entered once per session, kept in sessionStorage,
+//  never stored in the repo.
 // ═══════════════════════════════════════════════════════════
 
 const API = "https://api.github.com";
 const RAW = (owner, repo, branch) =>
   `https://raw.githubusercontent.com/${owner}/${repo}/${branch}`;
 
-let story = null;        // the loaded story object
-let isEditor = false;    // true if ?edit= matches CONFIG.editKey (or key empty)
-let pendingImages = [];  // { name, base64, dataUrl } waiting to be committed
+let story = null;
+let isEditor = false;
+let pendingImages = [];
+
+// ─── Fallback content (used if story.json fails) ───
+const FALLBACK = {
+  heroSub: "A story written in moments",
+  heroTitle: "Our Story",
+  yourName: "Your Name",
+  herName: "Her Name",
+  startDate: "2023-01-01T00:00:00",
+  startDateLabel: "Since January 1, 2023",
+  quote: "\"In a world of temporary things, you are my forever.\"",
+  timelineTitle: "Our Journey Together",
+  timelineSub: "Every moment, every laugh, every tear",
+  parallaxText: "You & Me",
+  galleryTitle: "Moments We've Captured",
+  letterGreeting: "My dearest,",
+  letterBody: [
+    "From the moment I met you, something in me knew.",
+    "Every day with you is a gift.",
+    "Thank you for choosing me.",
+    "I love you more than words can say."
+  ],
+  letterSignature: "Forever yours",
+  counterLabel: "We've been together for",
+  finalTitle: "And this is just the beginning",
+  finalText: "Every day with you is a gift. Here's to a thousand more memories.",
+  surprise: "You are my favorite person. I love you. ❤️",
+  songTitle: "Our song",
+  songFile: "",
+  moments: [
+    { date: "January 2023", title: "The day we met", text: "I still remember thinking — this is different.", photo: "" }
+  ],
+  gallery: []
+};
 
 // ─── Toast ───
 let toastTimer;
 function toast(msg) {
   const t = document.getElementById("toast");
+  if (!t) { console.log(msg); return; }
   t.textContent = msg;
   t.classList.remove("hidden");
   t.classList.add("show");
@@ -23,19 +57,45 @@ function toast(msg) {
   toastTimer = setTimeout(() => {
     t.classList.remove("show");
     setTimeout(() => t.classList.add("hidden"), 300);
-  }, 2400);
+  }, 2600);
 }
 
 // ─── Save pill ───
 function setSavePill(text, cls = "") {
   const p = document.getElementById("savePill");
+  if (!p) return;
   p.textContent = text;
   p.className = "save-pill " + cls;
   p.classList.remove("hidden");
 }
 
 // ═══════════════════════════════════════════════════════════
-// LOAD
+// EDITOR ACCESS — ask for token once per session
+// ═══════════════════════════════════════════════════════════
+function checkEditorAccess() {
+  const params = new URLSearchParams(location.search);
+  if (!params.has("edit")) { isEditor = false; return; }
+
+  if (CONFIG.editKey && params.get("edit") !== CONFIG.editKey) {
+    isEditor = false;
+    return;
+  }
+
+  let token = sessionStorage.getItem("gh_token") || "";
+  if (!token) {
+    token = (prompt(
+      "Paste your GitHub token (stays in this browser only, cleared when tab closes):"
+    ) || "").trim();
+    if (token) sessionStorage.setItem("gh_token", token);
+  }
+  if (!token) { isEditor = false; return; }
+
+  CONFIG.token = token;
+  isEditor = true;
+}
+
+// ═══════════════════════════════════════════════════════════
+// LOAD STORY
 // ═══════════════════════════════════════════════════════════
 async function loadStory() {
   try {
@@ -43,10 +103,11 @@ async function loadStory() {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     story = await res.json();
+    story = { ...FALLBACK, ...story };
   } catch (e) {
-    console.error("Failed to load story.json", e);
-    toast("Could not load story.json");
-    story = {};
+    console.error("story.json failed, using fallback:", e);
+    story = JSON.parse(JSON.stringify(FALLBACK));
+    setTimeout(() => toast("Using fallback content — check story.json"), 700);
   }
 }
 
@@ -54,14 +115,17 @@ async function loadStory() {
 // RENDER
 // ═══════════════════════════════════════════════════════════
 function renderAll() {
-  // Simple text fields
+  // Simple top-level text fields
   document.querySelectorAll("[data-key]").forEach(el => {
     const key = el.dataset.key;
-    if (key === "letterBody") return;
-    if (story[key] !== undefined) el.textContent = story[key];
+    if (!key || key === "letterBody") return;
+    if (key.startsWith("moments.") || key.startsWith("letterBody.")) return;
+    if (story[key] !== undefined && story[key] !== null) {
+      el.textContent = story[key];
+    }
   });
 
-  // Letter body paragraphs
+  // Letter body
   const body = document.getElementById("letterBody");
   body.innerHTML = "";
   (story.letterBody || []).forEach((p, i) => {
@@ -69,7 +133,6 @@ function renderAll() {
     el.className = "editable";
     el.dataset.key = `letterBody.${i}`;
     el.textContent = p;
-    bindEditable(el);
     body.appendChild(el);
   });
 
@@ -84,7 +147,9 @@ function renderAll() {
       <div class="moment-card">
         <button class="moment-remove" data-act="rm-moment" data-i="${i}">✕</button>
         <div class="image-picker" data-act="pick-moment" data-i="${i}">📷 Change photo</div>
-        ${m.photo ? `<img class="moment-img" src="${m.photo}" alt="">` : `<div class="moment-img" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;">📷 No photo yet</div>`}
+        ${m.photo
+          ? `<img class="moment-img" src="${m.photo}" alt="">`
+          : `<div class="moment-img" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;">📷 No photo yet</div>`}
         <span class="moment-date editable" data-key="moments.${i}.date">${esc(m.date)}</span>
         <h3 class="moment-title editable" data-key="moments.${i}.title">${esc(m.title)}</h3>
         <p class="moment-text editable" data-key="moments.${i}.text">${esc(m.text)}</p>
@@ -112,24 +177,24 @@ function renderAll() {
     g.appendChild(el);
   });
 
-  // bind editables
+  // Bind every editable element (fresh ones each render)
   document.querySelectorAll(".editable").forEach(bindEditable);
 
-  // Music player title
-  document.getElementById("musicTitle").textContent = story.songTitle || "Our song";
-  document.getElementById("bgMusic").src = story.songFile || "";
+  // Music player
+  const mt = document.getElementById("musicTitle");
+  if (mt) mt.textContent = story.songTitle || "Our song";
+  const bg = document.getElementById("bgMusic");
+  if (bg) bg.src = story.songFile || "";
+  const mp = document.getElementById("musicPlayer");
+  if (mp) mp.classList.toggle("hidden", !story.songFile);
 
-  // show/hide music player
-  document.getElementById("musicPlayer").classList.toggle("hidden", !story.songFile);
-
-  // show/hide editor controls
+  // Editor UI
   if (isEditor) {
     document.getElementById("editToggle").classList.remove("hidden");
     document.getElementById("savePill").classList.remove("hidden");
     setSavePill("Ready");
   }
 
-  // scroll animations
   initScrollAnims();
 }
 
@@ -145,18 +210,14 @@ function esc(s) {
 function bindEditable(el) {
   if (el.dataset.bound) return;
   el.dataset.bound = "1";
-
-  // Make sure it's focusable
   el.setAttribute("tabindex", "0");
 
-  // pointerdown works better than click on touch + desktop
   el.addEventListener("pointerdown", (e) => {
     if (!document.body.classList.contains("edit-mode")) return;
     e.stopPropagation();
     e.preventDefault();
     el.setAttribute("contenteditable", "true");
     el.focus();
-    // put the cursor at the end
     const range = document.createRange();
     range.selectNodeContents(el);
     range.collapse(false);
@@ -172,19 +233,14 @@ function bindEditable(el) {
     if (!key) return;
     const value = el.textContent.trim();
     setByPath(story, key, value);
-    console.log("saved", key, "=", value);
   });
 
   el.addEventListener("keydown", (e) => {
-    // Enter saves (unless it's a letter paragraph where Enter adds a line break)
-    if (e.key === "Enter" && !e.shiftKey && !el.dataset.key?.includes("letterBody")) {
+    if (e.key === "Enter" && !e.shiftKey && !(el.dataset.key || "").includes("letterBody")) {
       e.preventDefault();
       el.blur();
     }
-    // Escape cancels
-    if (e.key === "Escape") {
-      el.blur();
-    }
+    if (e.key === "Escape") el.blur();
   });
 }
 
@@ -200,11 +256,21 @@ function setByPath(obj, path, value) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// IMAGE HANDLING
+// IMAGE HELPERS
 // ═══════════════════════════════════════════════════════════
+function fileToDataURL(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
 function pickImage(cb) {
   const input = document.getElementById("imgInput");
   input.value = "";
+  input.multiple = false;
   input.onchange = async () => {
     const file = input.files[0];
     if (!file) return;
@@ -217,17 +283,8 @@ function pickImage(cb) {
   input.click();
 }
 
-function fileToDataURL(file) {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result);
-    r.onerror = rej;
-    r.readAsDataURL(file);
-  });
-}
-
 // ═══════════════════════════════════════════════════════════
-// EDIT ACTIONS
+// ADD / REMOVE
 // ═══════════════════════════════════════════════════════════
 function addMoment() {
   if (!story.moments) story.moments = [];
@@ -249,74 +306,43 @@ function addPhotosFromInput() {
       const base64 = dataUrl.split(",")[1];
       const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
       const name = "photo-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6) + "." + ext;
-      // store in memory until Save is pressed
-      story.gallery.push("__PENDING__" + name);
-      pendingImages.push({ name, base64, path: CONFIG.photosPath + name });
+      const path = CONFIG.photosPath + name;
+      story.gallery.push(path);
+      pendingImages.push({ name, base64, path });
     }
-    // now we need to render with pending placeholders — but we don't have raw URLs
-    // simplest: keep a pendingMap of name → dataUrl for local preview
-    for (const p of pendingImages) {
-      const i = story.gallery.indexOf("__PENDING__" + p.name);
-      if (i >= 0) story.gallery[i] = p.path + "?pending=" + encodeURIComponent(p.name);
-    }
-    renderGalleryWithPending();
+    renderAll();
     toast(files.length + " photo(s) ready — click Save");
   };
   input.click();
 }
 
-function renderGalleryWithPending() {
-  const g = document.getElementById("gallery");
-  g.innerHTML = "";
-  (story.gallery || []).forEach((src, i) => {
-    let imgSrc = src;
-    // if src is a pending path, look up the local dataURL
-    if (src.includes("?pending=")) {
-      const name = decodeURIComponent(src.split("?pending=")[1]);
-      const found = pendingImages.find(p => p.name === name);
-      if (found) imgSrc = found.dataUrl;
-    }
-    const el = document.createElement("div");
-    el.className = "gallery-item";
-    el.innerHTML = `
-      <button class="gallery-remove" data-act="rm-photo" data-i="${i}">✕</button>
-      <div class="image-picker" data-act="pick-gallery" data-i="${i}">📷 Change</div>
-      <img src="${imgSrc}" alt="">
-    `;
-    g.appendChild(el);
-  });
-}
-
 // ═══════════════════════════════════════════════════════════
-// SAVE (commit to GitHub)
+// SAVE
 // ═══════════════════════════════════════════════════════════
 async function saveToGitHub() {
-  if (!CONFIG.token || CONFIG.token.includes("REPLACE")) {
-    toast("No token set in config.js");
+  const token = sessionStorage.getItem("gh_token") || CONFIG.token || "";
+  if (!token) {
+    toast("No token — reload the ?edit= page and paste your token");
     return;
   }
+  CONFIG.token = token;
+
   setSavePill("Saving…", "saving");
 
   try {
-    // 1. Upload any pending images
+    // 1. Upload new images
     for (const img of pendingImages) {
       await putFile(img.path, img.base64, "Add " + img.name);
     }
-    // 2. Clean up __PENDING__ / ?pending= markers in gallery
-    story.gallery = (story.gallery || []).map(src => {
-      if (src.includes("?pending=")) return src.split("?pending=")[0];
-      if (src.startsWith("__PENDING__")) return CONFIG.photosPath + src.slice("__PENDING__".length);
-      return src;
-    });
     pendingImages = [];
 
-    // 3. Commit story.json
+    // 2. Commit story.json
     const json = JSON.stringify(story, null, 2);
     const base64 = btoa(unescape(encodeURIComponent(json)));
     await putFile(CONFIG.storyPath, base64, "Update story");
 
     setSavePill("Saved ✓", "saved");
-    toast("Saved! GitHub Pages will update in ~30s");
+    toast("Saved! GitHub Pages updates in ~30s");
   } catch (e) {
     console.error(e);
     setSavePill("Error: " + e.message, "error");
@@ -324,7 +350,6 @@ async function saveToGitHub() {
   }
 }
 
-// ─── GitHub Contents API: create or update a file ───
 async function putFile(path, base64Content, message) {
   const url = `${API}/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${path}`;
   const headers = {
@@ -334,29 +359,16 @@ async function putFile(path, base64Content, message) {
     "Content-Type": "application/json"
   };
 
-  // get existing sha if the file exists
   let sha = null;
   try {
     const r = await fetch(url, { headers });
-    if (r.ok) {
-      const data = await r.json();
-      sha = data.sha;
-    }
+    if (r.ok) { const d = await r.json(); sha = d.sha; }
   } catch {}
 
-  const body = {
-    message,
-    content: base64Content,
-    branch: CONFIG.branch
-  };
+  const body = { message, content: base64Content, branch: CONFIG.branch };
   if (sha) body.sha = sha;
 
-  const res = await fetch(url, {
-    method: "PUT",
-    headers,
-    body: JSON.stringify(body)
-  });
-
+  const res = await fetch(url, { method: "PUT", headers, body: JSON.stringify(body) });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || ("HTTP " + res.status));
@@ -382,9 +394,8 @@ function changeMusic() {
     const ext = (file.name.split(".").pop() || "mp3").toLowerCase();
     const name = "song-" + Date.now() + "." + ext;
     const path = CONFIG.musicPath + name;
-    // store in memory; commit on save
-    pendingImages.push({ name, base64, path, isMusic: true });
-    story.songFile = path + "?pending=" + encodeURIComponent(name);
+    pendingImages.push({ name, base64, path });
+    story.songFile = path;
     story.songTitle = file.name.replace(/\.[^.]+$/, "");
     document.getElementById("musicTitle").textContent = story.songTitle;
     const audio = document.getElementById("bgMusic");
@@ -396,19 +407,8 @@ function changeMusic() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// EDITOR MODE
+// UI EXTRAS
 // ═══════════════════════════════════════════════════════════
-function checkEditorAccess() {
-  const params = new URLSearchParams(location.search);
-  const k = params.get("edit");
-  if (!CONFIG.editKey) {
-    // no key set → editor toggle is always visible if a token exists
-    isEditor = !!CONFIG.token && !CONFIG.token.includes("REPLACE");
-  } else {
-    isEditor = k === CONFIG.editKey;
-  }
-}
-
 function openEditor() {
   document.body.classList.add("edit-mode");
   document.getElementById("editToolbar").classList.add("open");
@@ -421,9 +421,6 @@ function closeEditor() {
   saveToGitHub();
 }
 
-// ═══════════════════════════════════════════════════════════
-// MISC (music player, counter, surprise, petals, scroll, lightbox)
-// ═══════════════════════════════════════════════════════════
 function initMusicPlayer() {
   const audio = document.getElementById("bgMusic");
   const btn = document.getElementById("musicBtn");
@@ -480,7 +477,7 @@ function initSurprise() {
     t.textContent = story.surprise || "I love you ❤️";
     t.style.color = "var(--pink-soft)";
     const rain = document.getElementById("heartRain");
-    const hearts = ["❤", "💕", "💖", "💗", "💘", "💝", "🌸", "✨"];
+    const hearts = ["❤","💕","💖","💗","💘","💝","🌸","✨"];
     for (let i = 0; i < 50; i++) {
       const h = document.createElement("div");
       h.className = "heart-drop";
@@ -498,7 +495,7 @@ function initSurprise() {
 
 function initPetals() {
   const wrap = document.getElementById("petals");
-  const shapes = ["❤", "🌸", "✿", "❀", "♥", "✾"];
+  const shapes = ["❤","🌸","✿","❀","♥","✾"];
   for (let i = 0; i < 18; i++) {
     const p = document.createElement("div");
     p.className = "petal";
@@ -564,7 +561,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // event delegation for remove buttons + image pickers
+  // Delegated clicks for remove buttons + image pickers
   document.addEventListener("click", (e) => {
     const t = e.target;
     if (!t.dataset || !t.dataset.act) return;
@@ -579,16 +576,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (t.dataset.act === "rm-photo") {
       e.stopPropagation();
       story.gallery.splice(i, 1);
-      renderGalleryWithPending();
+      renderAll();
     }
     if (t.dataset.act === "pick-moment") {
       e.stopPropagation();
       pickImage(({ name, base64, dataUrl }) => {
         const path = CONFIG.photosPath + name;
         pendingImages.push({ name, base64, path });
-        story.moments[i].photo = dataUrl; // preview
-        // remember real path for save
-        story.moments[i].__pendingPhoto = path;
+        story.moments[i].photo = dataUrl;       // preview
+        story.moments[i].__pendingPhoto = path; // real path on save
         renderAll();
         toast("Photo ready — click Save");
       });
@@ -599,31 +595,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         const path = CONFIG.photosPath + name;
         pendingImages.push({ name, base64, path });
         story.gallery[i] = dataUrl;
-        story.gallery[i + "_path"] = path;
-        renderGalleryWithPending();
+        renderAll();
         toast("Photo ready — click Save");
       });
     }
   });
 
-  // hide loader
-  setTimeout(() => document.getElementById("loader").classList.add("hidden"), 1000);
+  setTimeout(() => document.getElementById("loader").classList.add("hidden"), 900);
 });
 
-// Before saving, convert any dataUrl previews back to repo paths
-const _origSave = saveToGitHub;
+// Before saving, convert pending moment photo previews into real repo paths
+const _origSaveToGitHub = saveToGitHub;
 saveToGitHub = async function () {
-  // fix moment photos
   (story.moments || []).forEach(m => {
     if (m.__pendingPhoto) { m.photo = m.__pendingPhoto; delete m.__pendingPhoto; }
   });
-  // fix gallery
-  if (story.gallery) {
-    story.gallery = story.gallery.map((src, i) => {
-      const p = story["gallery_" + i + "_path"];
-      return p || src;
-    });
-    Object.keys(story).filter(k => k.startsWith("gallery_")).forEach(k => delete story[k]);
-  }
-  return _origSave.apply(this, arguments);
+  return _origSaveToGitHub.apply(this, arguments);
 };
