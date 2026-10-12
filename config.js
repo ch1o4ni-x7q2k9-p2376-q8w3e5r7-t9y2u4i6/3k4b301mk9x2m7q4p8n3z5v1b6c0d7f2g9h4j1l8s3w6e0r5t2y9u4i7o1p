@@ -10,7 +10,7 @@ const CONFIG = {
   owner: "malaupp2376-commits",
 
   // The repo name (exact match, case sensitive)
-  repo: "chiroki-xoshawistiman",
+  repo: "chiroki-xoshawistiman-faonefoiaenf-afbefijefiefbiuweawdaefbefbweofbweo",
 
   // The branch (usually "main" — check your repo's URL)
   branch: "main",
