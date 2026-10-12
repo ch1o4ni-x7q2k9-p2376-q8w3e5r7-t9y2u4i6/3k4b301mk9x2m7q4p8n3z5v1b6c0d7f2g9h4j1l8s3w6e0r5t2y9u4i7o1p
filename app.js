@@ -148,9 +148,12 @@ function renderAll() {
     <button class="moment-remove" data-act="rm-moment" data-i="${i}">✕</button>
     <div class="moment-photo-wrap">
       <div class="image-picker" data-act="pick-moment" data-i="${i}">📷 Click to change photo</div>
-      ${m.photo
-        ? `<img class="moment-img" src="${m.photo}" alt="">`
-        : `<div class="moment-img" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;">📷 No photo yet</div>`}
+
+${(m.__preview || m.photo)
+  ? `<img class="moment-img" data-act="view-moment" data-i="${i}" src="${m.__preview || m.photo}" alt="" style="cursor:zoom-in;">`
+  : `<div class="moment-img" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;">📷 No photo yet</div>`}
+
+
     </div>
     <span class="moment-date editable" data-key="moments.${i}.date">${esc(m.date)}</span>
     <h3 class="moment-title editable" data-key="moments.${i}.title">${esc(m.title)}</h3>
@@ -168,10 +171,12 @@ function renderAll() {
     const el = document.createElement("div");
     el.className = "gallery-item";
     el.innerHTML = `
-      <button class="gallery-remove" data-act="rm-photo" data-i="${i}">✕</button>
-      <div class="image-picker" data-act="pick-gallery" data-i="${i}">📷 Change</div>
-      <img src="${src}" alt="">
-    `;
+  <button class="gallery-remove" data-act="rm-photo" data-i="${i}">✕</button>
+  <div class="moment-photo-wrap" style="width:100%;height:100%;">
+    <div class="image-picker" data-act="pick-gallery" data-i="${i}">📷 Click to change</div>
+    <img src="${story["__galleryPreview_" + i] || src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
+  </div>
+`;
     el.querySelector("img").onclick = (e) => {
       if (document.body.classList.contains("edit-mode")) return;
       openLightbox(src);
@@ -292,7 +297,7 @@ function addMoment() {
   if (!story.moments) story.moments = [];
   story.moments.push({ date: "Month Year", title: "New moment", text: "Write your story here...", photo: "" });
   renderAll();
-  toast("Moment added — edit it and click Save");
+  toast("Moment added — edit it, add a photo, then click Save");
 }
 
 function addPhotosFromInput() {
@@ -323,23 +328,47 @@ function addPhotosFromInput() {
 // ═══════════════════════════════════════════════════════════
 async function saveToGitHub() {
   const token = sessionStorage.getItem("gh_token") || CONFIG.token || "";
-  if (!token) {
-    toast("No token — reload the ?edit= page and paste your token");
-    return;
-  }
+  if (!token) { toast("No token — reload the ?edit= page"); return; }
   CONFIG.token = token;
 
   setSavePill("Saving…", "saving");
 
   try {
-    // 1. Upload new images
+    // 1. Upload every pending image (photos and songs)
     for (const img of pendingImages) {
       await putFile(img.path, img.base64, "Add " + img.name);
     }
-    pendingImages = [];
 
-    // 2. Commit story.json
+    // 2. Fix any moment photo fields that are still data URLs or preview paths
+    (story.moments || []).forEach(m => {
+      // if we saved a preview before, replace with the real repo path
+      if (m.__pendingPhoto) {
+        m.photo = m.__pendingPhoto;
+        delete m.__pendingPhoto;
+      }
+      // if the photo is a base64 data URL that somehow leaked in, drop it
+      if (typeof m.photo === "string" && m.photo.startsWith("data:")) {
+        m.photo = "";
+      }
+    });
+
+    // 3. Fix gallery entries that are still data URLs
+    if (Array.isArray(story.gallery)) {
+      story.gallery = story.gallery.filter(src => !(typeof src === "string" && src.startsWith("data:")));
+    }
+
+    // 4. Clear pending after successful upload
+    pendingImages = [];
+    // clear previews so next render loads the real file
+(story.moments || []).forEach(m => { delete m.__preview; });
+    // clear gallery previews
+Object.keys(story).filter(k => k.startsWith("__galleryPreview_")).forEach(k => delete story[k]);
+
+    // 5. Commit story.json — must be small now
     const json = JSON.stringify(story, null, 2);
+    if (json.length > 5_000_000) {
+      throw new Error("story.json too large — too many embedded images");
+    }
     const base64 = btoa(unescape(encodeURIComponent(json)));
     await putFile(CONFIG.storyPath, base64, "Update story");
 
@@ -580,27 +609,38 @@ document.addEventListener("DOMContentLoaded", async () => {
       story.gallery.splice(i, 1);
       renderAll();
     }
-    if (t.dataset.act === "pick-moment") {
-      e.stopPropagation();
-      pickImage(({ name, base64, dataUrl }) => {
-        const path = CONFIG.photosPath + name;
-        pendingImages.push({ name, base64, path });
-        story.moments[i].photo = dataUrl;       // preview
-        story.moments[i].__pendingPhoto = path; // real path on save
-        renderAll();
-        toast("Photo ready — click Save");
-      });
-    }
-    if (t.dataset.act === "pick-gallery") {
-      e.stopPropagation();
-      pickImage(({ name, base64, dataUrl }) => {
-        const path = CONFIG.photosPath + name;
-        pendingImages.push({ name, base64, path });
-        story.gallery[i] = dataUrl;
-        renderAll();
-        toast("Photo ready — click Save");
-      });
-    }
+    if (t.dataset.act === "view-moment") {
+  e.stopPropagation();
+  const src = story.moments[i]?.__preview || story.moments[i]?.photo;
+  if (src) openLightbox(src);
+  return;
+}
+if (t.dataset.act === "pick-moment") {
+  e.stopPropagation();
+  pickImage(({ name, base64, dataUrl }) => {
+    const path = CONFIG.photosPath + name;
+    // preview only in the browser, don't touch story.moments[i].photo yet
+    story.moments[i].__preview = dataUrl;
+    story.moments[i].__pendingPhoto = path;
+    // set photo to the real path so it saves correctly
+    story.moments[i].photo = path;
+    pendingImages.push({ name, base64, path });
+    renderAll();
+    toast("Photo ready — click Save");
+  });
+}
+if (t.dataset.act === "pick-gallery") {
+  e.stopPropagation();
+  pickImage(({ name, base64, dataUrl }) => {
+    const path = CONFIG.photosPath + name;
+    pendingImages.push({ name, base64, path });
+    // set the real path, keep a preview separately
+    story.gallery[i] = path;
+    story["__galleryPreview_" + i] = dataUrl;
+    renderAll();
+    toast("Photo ready — click Save");
+  });
+}
   });
 
   setTimeout(() => document.getElementById("loader").classList.add("hidden"), 900);
