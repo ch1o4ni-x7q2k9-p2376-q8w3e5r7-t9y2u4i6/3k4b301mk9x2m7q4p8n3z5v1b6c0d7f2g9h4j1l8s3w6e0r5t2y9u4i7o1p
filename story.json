@@ -1,0 +1,31 @@
+{
+  "heroSub": "A story written in moments",
+  "heroTitle": "Our Story",
+  "yourName": "Your Name",
+  "herName": "Her Name",
+  "startDate": "2023-01-01T20:00:00",
+  "startDateLabel": "Since January 1, 2023",
+  "quote": "\"In a world of temporary things, you are my forever.\"",
+  "timelineTitle": "Our Journey Together",
+  "timelineSub": "Every moment, every laugh, every tear",
+  "parallaxText": "You & Me",
+  "galleryTitle": "Moments We've Captured",
+  "letterGreeting": "My dearest,",
+  "letterBody": [
+    "From the moment I met you, something in me knew. You walked in and suddenly everything felt right.",
+    "Every day with you is a gift I don't take for granted.",
+    "Thank you for choosing me. For your patience, your kindness, your warmth.",
+    "I love you more than any words on this page could ever say."
+  ],
+  "letterSignature": "Forever yours",
+  "counterLabel": "We've been together for",
+  "finalTitle": "And this is just the beginning",
+  "finalText": "Every day with you is a gift. Here's to a thousand more memories.",
+  "surprise": "You are my favorite person, my safest place, my greatest adventure. I love you. ❤️",
+  "songTitle": "Our song",
+  "songFile": "",
+  "moments": [
+    { "date": "January 2023", "title": "The day we met", "text": "I still remember exactly what you were wearing.", "photo": "" }
+  ],
+  "gallery": []
+}
