@@ -597,8 +597,6 @@ body.edit-mode .gallery-item:hover .image-picker { display: flex; }
   opacity: 0.55;
 }
 
-/* ═══════ MILESTONE EDITING ═══════ */
-
 /* Remove button — appears on hover in edit mode */
 .milestone-remove {
   position: absolute;
@@ -645,13 +643,6 @@ body.edit-mode .milestone-card .editable:hover {
 body.edit-mode .milestone-card .editable:focus {
   outline: 2px solid var(--gold);
   background: rgba(255, 77, 125, 0.15);
-}
-
-/* Slightly larger emoji editing hit area */
-body.edit-mode .milestone-emoji.editable {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 10px;
 }
 
 img, .moment-img, .gallery-item img {
