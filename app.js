@@ -499,11 +499,27 @@ function putFile(path, base64Content, message) {
     "Content-Type": "application/json"
   };
 
-  return fetch(url, { headers: headers })
-    .then(function (r) { return r.ok ? r.json() : null; })
+  // Always fetch the freshest SHA (ignore cache)
+  var shaUrl = url + "?ref=" + CONFIG.branch + "&t=" + Date.now();
+
+  return fetch(shaUrl, {
+    headers: headers,
+    cache: "no-store"
+  })
+    .then(function (r) {
+      if (r.status === 404) return null;    // file doesn't exist yet
+      if (!r.ok) return null;                // some other error — try without sha
+      return r.json();
+    })
     .then(function (existing) {
-      var body = { message: message, content: base64Content, branch: CONFIG.branch };
-      if (existing && existing.sha) body.sha = existing.sha;
+      var body = {
+        message: message,
+        content: base64Content,
+        branch: CONFIG.branch
+      };
+      if (existing && existing.sha) {
+        body.sha = existing.sha;
+      }
 
       return fetch(url, {
         method: "PUT",
@@ -512,12 +528,35 @@ function putFile(path, base64Content, message) {
       });
     })
     .then(function (res) {
-      if (!res.ok) {
-        return res.json().catch(function () { return {}; }).then(function (err) {
-          throw new Error(err.message || ("HTTP " + res.status));
-        });
-      }
-      return res.json();
+      if (res.ok) return res.json();
+
+      // If it failed with SHA mismatch, retry once with a fresh fetch
+      return res.json().then(function (err) {
+        var msg = err.message || ("HTTP " + res.status);
+
+        if (msg.indexOf("does not match") !== -1 || msg.indexOf("sha") !== -1) {
+          // Retry once — this time with absolutely no sha
+          var retryBody = {
+            message: message + " (retry)",
+            content: base64Content,
+            branch: CONFIG.branch
+          };
+          return fetch(url, {
+            method: "PUT",
+            headers: headers,
+            body: JSON.stringify(retryBody)
+          }).then(function (res2) {
+            if (!res2.ok) {
+              return res2.json().catch(function () { return {}; }).then(function (e2) {
+                throw new Error(e2.message || ("HTTP " + res2.status));
+              });
+            }
+            return res2.json();
+          });
+        }
+
+        throw new Error(msg);
+      });
     });
 }
 
