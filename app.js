@@ -7,8 +7,6 @@ window.MILESTONES = window.MILESTONES || [];
 
 // ═══════════════════════════════════════════════════════════
 //  Our Story — reader + in-page editor
-//  Token is entered once per session, kept in sessionStorage,
-//  never stored in the repo.
 // ═══════════════════════════════════════════════════════════
 
 const API = "https://api.github.com";
@@ -19,7 +17,7 @@ let story = null;
 let isEditor = false;
 let pendingImages = [];
 
-// ─── Fallback content (used if story.json fails) ───
+// ─── Fallback content ───
 const FALLBACK = {
   heroSub: "A story written in moments",
   heroTitle: "Our Story",
@@ -53,7 +51,32 @@ const FALLBACK = {
 };
 
 // ═══════════════════════════════════════════════════════════
-// MILESTONE COUNTDOWNS
+// TOAST + SAVE PILL (top-level, used everywhere)
+// ═══════════════════════════════════════════════════════════
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  if (!t) { console.log(msg); return; }
+  t.textContent = msg;
+  t.classList.remove("hidden");
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    t.classList.remove("show");
+    setTimeout(() => t.classList.add("hidden"), 300);
+  }, 2600);
+}
+
+function setSavePill(text, cls = "") {
+  const p = document.getElementById("savePill");
+  if (!p) return;
+  p.textContent = text;
+  p.className = "save-pill " + cls;
+  p.classList.remove("hidden");
+}
+
+// ═══════════════════════════════════════════════════════════
+// MILESTONES — all functions at top level so onclick works
 // ═══════════════════════════════════════════════════════════
 let MILESTONES = [
   { emoji: "💕", title: "Our anniversary", date: "2026-06-19", repeatYearly: true },
@@ -128,32 +151,8 @@ function addMilestone() {
   toast("Milestone added — edit it, then click Save");
 }
 
-// ─── Toast ───
-let toastTimer;
-function toast(msg) {
-  const t = document.getElementById("toast");
-  if (!t) { console.log(msg); return; }
-  t.textContent = msg;
-  t.classList.remove("hidden");
-  t.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    t.classList.remove("show");
-    setTimeout(() => t.classList.add("hidden"), 300);
-  }, 2600);
-}
-
-// ─── Save pill ───
-function setSavePill(text, cls = "") {
-  const p = document.getElementById("savePill");
-  if (!p) return;
-  p.textContent = text;
-  p.className = "save-pill " + cls;
-  p.classList.remove("hidden");
-}
-
 // ═══════════════════════════════════════════════════════════
-// EDITOR ACCESS — ask for token once per session
+// EDITOR ACCESS
 // ═══════════════════════════════════════════════════════════
 function checkEditorAccess() {
   const params = new URLSearchParams(location.search);
@@ -188,7 +187,6 @@ async function loadStory() {
     story = await res.json();
     story = { ...FALLBACK, ...story };
 
-    // restore milestones if saved previously
     if (Array.isArray(story.milestones) && story.milestones.length) {
       MILESTONES = story.milestones;
     }
@@ -200,9 +198,19 @@ async function loadStory() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// ESCAPE HTML
+// ═══════════════════════════════════════════════════════════
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s == null ? "" : s;
+  return d.innerHTML;
+}
+
+// ═══════════════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════════════
 function renderAll() {
+  // Simple top-level text fields
   document.querySelectorAll("[data-key]").forEach(el => {
     const key = el.dataset.key;
     if (!key || key === "letterBody") return;
@@ -239,9 +247,11 @@ function renderAll() {
             ? `<img class="moment-img" data-act="view-moment" data-i="${i}" src="${m.__preview || m.photo}" alt="" style="cursor:zoom-in;">`
             : `<div class="moment-img" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;">📷 No photo yet</div>`}
         </div>
-        <span class="moment-date editable" data-key="moments.${i}.date">${esc(m.date)}</span>
-        <h3 class="moment-title editable" data-key="moments.${i}.title">${esc(m.title)}</h3>
-        <p class="moment-text editable" data-key="moments.${i}.text">${esc(m.text)}</p>
+        <div class="moment-body">
+          <span class="moment-date editable" data-key="moments.${i}.date">${esc(m.date)}</span>
+          <h3 class="moment-title editable" data-key="moments.${i}.title">${esc(m.title)}</h3>
+          <p class="moment-text editable" data-key="moments.${i}.text">${esc(m.text)}</p>
+        </div>
       </div>
       <div class="moment-dot"></div>
     `;
@@ -266,7 +276,7 @@ function renderAll() {
 
   document.querySelectorAll(".editable").forEach(bindEditable);
 
-  // Music player
+  // Music
   const mt = document.getElementById("musicTitle");
   if (mt) mt.textContent = story.songTitle || "Our song";
   const bg = document.getElementById("bgMusic");
@@ -284,14 +294,8 @@ function renderAll() {
   initScrollAnims();
 }
 
-function esc(s) {
-  const d = document.createElement("div");
-  d.textContent = s == null ? "" : s;
-  return d.innerHTML;
-}
-
 // ═══════════════════════════════════════════════════════════
-// EDITABLE TEXT — handles normal fields + milestone fields
+// EDITABLE — handles both normal fields and milestone fields
 // ═══════════════════════════════════════════════════════════
 function bindEditable(el) {
   if (el.dataset.bound) return;
@@ -346,7 +350,7 @@ function bindEditable(el) {
       return;
     }
 
-    // ─── Normal text ───
+    // ─── Normal text fields ───
     setByPath(story, key, value);
   });
 
@@ -399,7 +403,7 @@ function pickImage(cb) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// ADD / REMOVE (moments, gallery)
+// ADD MOMENT / ADD PHOTOS
 // ═══════════════════════════════════════════════════════════
 function addMoment() {
   if (!story.moments) story.moments = [];
@@ -550,7 +554,7 @@ function changeMusic() {
 function openEditor() {
   document.body.classList.add("edit-mode");
   document.getElementById("editToolbar").classList.add("open");
-  toast("Edit mode — click text to change, then Save");
+  toast("Edit mode — click any text to change it, then Save");
 }
 
 function closeEditor() {
@@ -562,6 +566,7 @@ function initMusicPlayer() {
   const audio = document.getElementById("bgMusic");
   const btn = document.getElementById("musicBtn");
   const player = document.getElementById("musicPlayer");
+  if (!btn) return;
   const playIcon = btn.querySelector(".music-icon-play");
   const pauseIcon = btn.querySelector(".music-icon-pause");
 
@@ -599,20 +604,28 @@ function initCounter() {
     const diff = Date.now() - start.getTime();
     if (diff < 0) return;
     const s = Math.floor(diff / 1000);
-    document.getElementById("days").textContent = Math.floor(s / 86400).toLocaleString();
-    document.getElementById("hours").textContent = Math.floor((s % 86400) / 3600);
-    document.getElementById("minutes").textContent = Math.floor((s % 3600) / 60);
-    document.getElementById("seconds").textContent = s % 60;
+    const d = document.getElementById("days");
+    const h = document.getElementById("hours");
+    const m = document.getElementById("minutes");
+    const sec = document.getElementById("seconds");
+    if (d) d.textContent = Math.floor(s / 86400).toLocaleString();
+    if (h) h.textContent = Math.floor((s % 86400) / 3600);
+    if (m) m.textContent = Math.floor((s % 3600) / 60);
+    if (sec) sec.textContent = s % 60;
   }
   tick();
   setInterval(tick, 1000);
 }
 
 function initSurprise() {
-  document.getElementById("heartBtn").addEventListener("click", () => {
+  const btn = document.getElementById("heartBtn");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
     const t = document.getElementById("finalText");
-    t.textContent = story.surprise || "I love you ❤️";
-    t.style.color = "var(--pink-soft)";
+    if (t) {
+      t.textContent = story.surprise || "I love you ❤️";
+      t.style.color = "var(--pink-soft)";
+    }
     const rain = document.getElementById("heartRain");
     const hearts = ["❤","💕","💖","💗","💘","💝","🌸","✨"];
     for (let i = 0; i < 50; i++) {
@@ -626,12 +639,14 @@ function initSurprise() {
       rain.appendChild(h);
       setTimeout(() => h.remove(), 8000);
     }
-    document.querySelector("#heartBtn span").textContent = "I love you ❤️";
+    const sp = btn.querySelector("span");
+    if (sp) sp.textContent = "I love you ❤️";
   });
 }
 
 function initPetals() {
   const wrap = document.getElementById("petals");
+  if (!wrap) return;
   const shapes = ["❤","🌸","✿","❀","♥","✾"];
   for (let i = 0; i < 18; i++) {
     const p = document.createElement("div");
@@ -659,6 +674,7 @@ function initScrollAnims() {
 
 function openLightbox(src) {
   const lb = document.getElementById("lightbox");
+  if (!lb) return;
   lb.querySelector("img").src = src;
   lb.classList.add("open");
 }
@@ -676,28 +692,37 @@ document.addEventListener("DOMContentLoaded", async () => {
   initSurprise();
   initPetals();
 
-  document.getElementById("startBtn").onclick = () =>
+  const startBtn = document.getElementById("startBtn");
+  if (startBtn) startBtn.onclick = () =>
     document.querySelector(".timeline-section").scrollIntoView({ behavior: "smooth" });
 
-  document.getElementById("editToggle").onclick = () => {
+  const editToggle = document.getElementById("editToggle");
+  if (editToggle) editToggle.onclick = () => {
     if (document.body.classList.contains("edit-mode")) closeEditor();
     else openEditor();
   };
 
-  document.getElementById("etDone").onclick = async () => {
+  const etDone = document.getElementById("etDone");
+  if (etDone) etDone.onclick = async () => {
     await saveToGitHub();
     closeEditor();
   };
-  document.getElementById("etAddMoment").onclick = addMoment;
-  document.getElementById("etAddPhoto").onclick = addPhotosFromInput;
-  document.getElementById("etChangeMusic").onclick = changeMusic;
 
-  document.getElementById("lightbox").onclick = () =>
-    document.getElementById("lightbox").classList.remove("open");
+  const etAddMoment = document.getElementById("etAddMoment");
+  if (etAddMoment) etAddMoment.onclick = addMoment;
+
+  const etAddPhoto = document.getElementById("etAddPhoto");
+  if (etAddPhoto) etAddPhoto.onclick = addPhotosFromInput;
+
+  const etChangeMusic = document.getElementById("etChangeMusic");
+  if (etChangeMusic) etChangeMusic.onclick = changeMusic;
+
+  const lightbox = document.getElementById("lightbox");
+  if (lightbox) lightbox.onclick = () => lightbox.classList.remove("open");
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      document.getElementById("lightbox").classList.remove("open");
+      if (lightbox) lightbox.classList.remove("open");
       if (document.body.classList.contains("edit-mode")) closeEditor();
     }
   });
@@ -763,14 +788,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Block right-click save on images only
+  // Block right-click save on images
   document.addEventListener("contextmenu", (e) => {
     if (e.target.tagName === "IMG") e.preventDefault();
   });
 
   // Hide loader
-  setTimeout(() => document.getElementById("loader").classList.add("hidden"), 900);
+  setTimeout(() => {
+    const l = document.getElementById("loader");
+    if (l) l.classList.add("hidden");
+  }, 900);
 
+  // Refresh milestones hourly
+  setInterval(renderMilestones, 3600 * 1000);
+});
   // Refresh milestones hourly
   setInterval(renderMilestones, 3600 * 1000);
 });
