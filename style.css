@@ -480,6 +480,7 @@ body.edit-mode .gallery-item:hover .image-picker { display: flex; }
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+
 /* RESPONSIVE */
 @media (max-width: 720px) {
   .timeline::before { left: 20px; }
@@ -490,4 +491,11 @@ body.edit-mode .gallery-item:hover .image-picker { display: flex; }
   .music-title { display: none; }
   .edit-toolbar { padding: 10px 12px; }
   .et-btn { padding: 6px 10px; font-size: 11px; }
+}
+
+
+img, .cropped-photo, .moment-img, .gallery-item img {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
