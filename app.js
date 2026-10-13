@@ -606,6 +606,13 @@ document.addEventListener("click", function (e) {
     story.gallery.splice(i, 1);
     renderAll();
   }
+    if (t.dataset.act === "rm-milestone") {
+    e.stopPropagation();
+    if (!confirm("Remove this milestone?")) return;
+    MILESTONES.splice(i, 1);
+    renderMilestones();
+    toast("Milestone removed");
+  }
   if (t.dataset.act === "pick-moment") {
     e.stopPropagation();
     pickImage(function (o) {
