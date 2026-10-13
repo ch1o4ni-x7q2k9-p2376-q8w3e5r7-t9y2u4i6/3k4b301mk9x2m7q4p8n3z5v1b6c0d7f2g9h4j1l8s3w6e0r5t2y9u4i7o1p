@@ -104,8 +104,11 @@ function loadStory() {
       if (!res.ok) throw new Error("HTTP " + res.status);
       return res.json();
     })
-    .then(function (data) {
+       .then(function (data) {
       story = Object.assign({}, FALLBACK, data);
+      if (Array.isArray(story.milestones) && story.milestones.length) {
+        MILESTONES = story.milestones;
+      }
     })
     .catch(function (e) {
       console.error("story.json failed:", e);
