@@ -2,7 +2,7 @@
   "heroSub": "jwantrin satakani ema",
   "heroTitle": "چیرۆکەکەمان",
   "yourName": "Rauan",
-  "herName": "Sheua",
+  "herName": "Sheuakam",
   "startDate": "2026-06-19T21:39:00",
   "startDateLabel": "La  19/6/2026",
   "quote": "lam dnia katiada to hamw shteki mnit'💍",
@@ -56,16 +56,16 @@
       "photo": "photos/photo-1791836418877-cf30.png"
     },
     {
-      "date": "June 2026",
+      "date": "Month Year",
       "title": "chani pe xosha call kam😂",
       "text": "basaqai dli bmmm",
       "photo": "photos/photo-1791836458858-rdkf.png"
     },
     {
-      "date": "october 2026",
-      "title": "Ashtbwnauaiaki mu7taramana",
-      "text": "dlishi narma yaksar ashtabetaua🙂😂💍",
-      "photo": "photos/photo-1791923242949-aisw.png"
+      "date": "Month Year",
+      "title": "New moment",
+      "text": "Write your story here...",
+      "photo": "photos/photo-1791924949158-tchq.png"
     }
   ],
   "gallery": [
@@ -76,13 +76,13 @@
     {
       "emoji": "🎂",
       "title": "Sheua's birthday",
-      "date": "2027-06-16",
+      "date": "2027-06-15",
       "repeatYearly": true
     },
     {
       "emoji": "🎉",
       "title": "Rauan's birthday",
-      "date": "2026-11-23",
+      "date": "2026-11-22",
       "repeatYearly": true
     }
   ]
