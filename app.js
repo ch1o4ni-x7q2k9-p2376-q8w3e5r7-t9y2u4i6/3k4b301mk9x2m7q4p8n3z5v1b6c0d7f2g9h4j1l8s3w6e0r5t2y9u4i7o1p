@@ -4,7 +4,7 @@
 
 const API = "https://api.github.com";
 const RAW = (owner, repo, branch) =>
-  `https://raw.githubusercontent.com/${owner}/${repo}/${branch}`;
+  `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${branch}`;
 
 let story = null;
 let isEditor = false;
