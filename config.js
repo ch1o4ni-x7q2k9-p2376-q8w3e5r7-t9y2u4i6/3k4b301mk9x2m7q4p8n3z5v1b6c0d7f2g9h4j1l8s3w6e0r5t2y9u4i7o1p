@@ -24,7 +24,7 @@ const CONFIG = {
   editKey: "1",
 
   // Path where story.json lives in the repo (don't change)
-  storyPath: "story.json",
+  storyPath: "story2.json",
 
   // Folder paths for uploads (don't change)
   photosPath: "photos/",
