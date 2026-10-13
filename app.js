@@ -444,41 +444,50 @@ function saveToGitHub() {
 
   setSavePill("Saving...", "saving");
 
+  // Snapshot the current state of everything BEFORE async work
+  story.milestones = MILESTONES;
+
+  // Clean up moment previews and gallery previews FIRST (synchronous)
+  (story.moments || []).forEach(function (m) {
+    if (m.__pendingPhoto) { m.photo = m.__pendingPhoto; delete m.__pendingPhoto; }
+    if (typeof m.photo === "string" && m.photo.indexOf("data:") === 0) m.photo = "";
+    delete m.__preview;
+  });
+
+  if (Array.isArray(story.gallery)) {
+    story.gallery = story.gallery.filter(function (src) {
+      return !(typeof src === "string" && src.indexOf("data:") === 0);
+    });
+  }
+
+  Object.keys(story).forEach(function (k) {
+    if (k.indexOf("__galleryPreview_") === 0) delete story[k];
+  });
+
+  // Now upload any pending images (or songs)
   var uploads = pendingImages.map(function (img) {
     return putFile(img.path, img.base64, "Add " + img.name);
   });
 
-  return Promise.all(uploads).then(function () {
-    (story.moments || []).forEach(function (m) {
-      if (m.__pendingPhoto) { m.photo = m.__pendingPhoto; delete m.__pendingPhoto; }
-      if (typeof m.photo === "string" && m.photo.indexOf("data:") === 0) m.photo = "";
-      delete m.__preview;
+  return Promise.all(uploads)
+    .then(function () {
+      pendingImages = [];
+
+      // Commit story.json LAST, after all uploads succeeded
+      var json = JSON.stringify(story, null, 2);
+      if (json.length > 5000000) throw new Error("story.json too large");
+      var base64 = btoa(unescape(encodeURIComponent(json)));
+      return putFile(CONFIG.storyPath, base64, "Update story");
+    })
+    .then(function () {
+      setSavePill("Saved", "saved");
+      toast("Saved!");
+    })
+    .catch(function (e) {
+      console.error("Save error:", e);
+      setSavePill("Error: " + e.message, "error");
+      toast("Save failed: " + e.message);
     });
-
-    if (Array.isArray(story.gallery)) {
-      story.gallery = story.gallery.filter(function (src) {
-        return !(typeof src === "string" && src.indexOf("data:") === 0);
-      });
-    }
-
-    Object.keys(story).forEach(function (k) {
-      if (k.indexOf("__galleryPreview_") === 0) delete story[k];
-    });
-    pendingImages = [];
-        story.milestones = MILESTONES;
-    var json = JSON.stringify(story, null, 2);
-    if (json.length > 5000000) throw new Error("story.json too large");
-
-    var base64 = btoa(unescape(encodeURIComponent(json)));
-    return putFile(CONFIG.storyPath, base64, "Update story");
-  }).then(function () {
-    setSavePill("Saved", "saved");
-    toast("Saved!");
-  }).catch(function (e) {
-    console.error(e);
-    setSavePill("Error: " + e.message, "error");
-    toast("Save failed: " + e.message);
-  });
 }
 
 function putFile(path, base64Content, message) {
