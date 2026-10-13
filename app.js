@@ -3,7 +3,7 @@
 //  Token is entered once per session, kept in sessionStorage,
 //  never stored in the repo.
 // ═══════════════════════════════════════════════════════════
-
+window.MILESTONES = window.MILESTONES || [];
 const API = "https://api.github.com";
 const RAW = (owner, repo, branch) =>
   `https://raw.githubusercontent.com/${owner}/${repo}/${branch}`;
