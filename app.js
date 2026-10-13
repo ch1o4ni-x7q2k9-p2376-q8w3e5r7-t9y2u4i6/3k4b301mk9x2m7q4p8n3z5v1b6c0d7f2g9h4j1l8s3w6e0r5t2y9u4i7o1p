@@ -68,7 +68,80 @@ function setSavePill(text, cls) {
   p.className = "save-pill " + (cls || "");
   p.classList.remove("hidden");
 }
+// ═══════════════════════════════════════════════════════════
+// MILESTONE COUNTDOWNS
+// ═══════════════════════════════════════════════════════════
+var MILESTONES = [
+  { emoji: "💕", title: "Our anniversary", date: "2026-06-19", repeatYearly: true },
+  { emoji: "🎂", title: "Her birthday", date: "2026-08-15", repeatYearly: true },
+  { emoji: "🎉", title: "My birthday", date: "2026-03-04", repeatYearly: true }
+];
 
+function nextOccurrence(dateStr, repeatYearly) {
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  var parts = dateStr.split("-");
+  var target = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  if (repeatYearly) {
+    while (target < today) target.setFullYear(target.getFullYear() + 1);
+  }
+  return target;
+}
+
+function daysUntil(target) {
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((target - today) / 86400000);
+}
+
+function renderMilestones() {
+  var wrap = document.getElementById("milestones");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  MILESTONES.forEach(function (m, i) {
+    var target = nextOccurrence(m.date, m.repeatYearly);
+    var diff = daysUntil(target);
+
+    var num, unit, cls = "";
+    if (diff === 0) {
+      num = "Today";
+      unit = "celebrate!";
+      cls = "milestone-today";
+    } else if (diff < 0) {
+      num = Math.abs(diff);
+      unit = "days ago";
+      cls = "milestone-past";
+    } else {
+      num = diff;
+      unit = diff === 1 ? "day to go" : "days to go";
+    }
+
+    var el = document.createElement("div");
+    el.className = "milestone-card " + cls;
+    el.innerHTML =
+      '<button class="milestone-remove" data-act="rm-milestone" data-i="' + i + '" title="Remove">✕</button>' +
+      '<span class="milestone-emoji editable" data-key="milestones.' + i + '.emoji">' + (m.emoji || "⭐") + '</span>' +
+      '<p class="milestone-title editable" data-key="milestones.' + i + '.title">' + esc(m.title || "") + '</p>' +
+      '<p class="milestone-date editable" data-key="milestones.' + i + '.date">' + target.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) + '</p>' +
+      '<p class="milestone-num">' + num + '</p>' +
+      '<span class="milestone-unit">' + unit + '</span>';
+    wrap.appendChild(el);
+  });
+
+  wrap.querySelectorAll(".editable").forEach(bindEditable);
+}
+
+function addMilestone() {
+  MILESTONES.push({
+    emoji: "⭐",
+    title: "New milestone",
+    date: new Date().toISOString().slice(0, 10),
+    repeatYearly: true
+  });
+  renderMilestones();
+  toast("Milestone added");
+} 
 function esc(s) {
   var d = document.createElement("div");
   d.textContent = s == null ? "" : s;
@@ -231,13 +304,41 @@ function bindEditable(el) {
     sel.removeAllRanges();
     sel.addRange(range);
   });
-
   el.addEventListener("blur", function () {
     if (!document.body.classList.contains("edit-mode")) return;
     el.removeAttribute("contenteditable");
     var key = el.dataset.key;
     if (!key) return;
     var value = el.textContent.trim();
+
+    // Special handling for milestone fields
+    if (key.indexOf("milestones.") === 0) {
+      var parts = key.split(".");
+      var idx = parseInt(parts[1]);
+      var field = parts[2];
+      if (!MILESTONES[idx]) return;
+
+      if (field === "date") {
+        var parsed = new Date(value);
+        if (isNaN(parsed.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+          parsed = new Date(value + "T00:00:00");
+        }
+        if (isNaN(parsed.getTime())) {
+          toast("Could not read that date");
+          renderMilestones();
+          return;
+        }
+        MILESTONES[idx].date = parsed.toISOString().slice(0, 10);
+      } else if (field === "emoji") {
+        MILESTONES[idx].emoji = value || "⭐";
+      } else if (field === "title") {
+        MILESTONES[idx].title = value || "Untitled";
+      }
+      renderMilestones();
+      return;
+    }
+
+    // Normal text fields
     setByPath(story, key, value);
   });
 
