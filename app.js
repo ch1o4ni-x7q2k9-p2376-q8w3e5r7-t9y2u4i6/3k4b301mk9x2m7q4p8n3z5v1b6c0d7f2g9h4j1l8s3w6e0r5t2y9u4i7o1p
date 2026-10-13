@@ -4,6 +4,13 @@
 //  never stored in the repo.
 // ═══════════════════════════════════════════════════════════
 window.MILESTONES = window.MILESTONES || [];
+
+// ═══════════════════════════════════════════════════════════
+//  Our Story — reader + in-page editor
+//  Token is entered once per session, kept in sessionStorage,
+//  never stored in the repo.
+// ═══════════════════════════════════════════════════════════
+
 const API = "https://api.github.com";
 const RAW = (owner, repo, branch) =>
   `https://raw.githubusercontent.com/${owner}/${repo}/${branch}`;
@@ -44,6 +51,82 @@ const FALLBACK = {
   ],
   gallery: []
 };
+
+// ═══════════════════════════════════════════════════════════
+// MILESTONE COUNTDOWNS
+// ═══════════════════════════════════════════════════════════
+let MILESTONES = [
+  { emoji: "💕", title: "Our anniversary", date: "2026-06-19", repeatYearly: true },
+  { emoji: "🎂", title: "Her birthday", date: "2026-08-15", repeatYearly: true },
+  { emoji: "🎉", title: "My birthday", date: "2026-03-04", repeatYearly: true }
+];
+
+function nextOccurrence(dateStr, repeatYearly) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [y, m, d] = dateStr.split("-").map(Number);
+  let target = new Date(y, m - 1, d);
+  if (repeatYearly) {
+    while (target < today) target.setFullYear(target.getFullYear() + 1);
+  }
+  return target;
+}
+
+function daysUntil(target) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((target - today) / 86400000);
+}
+
+function renderMilestones() {
+  const wrap = document.getElementById("milestones");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  MILESTONES.forEach((m, i) => {
+    const target = nextOccurrence(m.date, m.repeatYearly);
+    const diff = daysUntil(target);
+
+    let num, unit, cls = "";
+    if (diff === 0) {
+      num = "Today";
+      unit = "🎉 celebrate!";
+      cls = "milestone-today";
+    } else if (diff < 0) {
+      num = Math.abs(diff);
+      unit = "days ago";
+      cls = "milestone-past";
+    } else {
+      num = diff;
+      unit = diff === 1 ? "day to go" : "days to go";
+    }
+
+    const el = document.createElement("div");
+    el.className = "milestone-card " + cls;
+    el.innerHTML = `
+      <button class="milestone-remove" data-act="rm-milestone" data-i="${i}" title="Remove">✕</button>
+      <span class="milestone-emoji editable" data-key="milestones.${i}.emoji">${m.emoji || "⭐"}</span>
+      <p class="milestone-title editable" data-key="milestones.${i}.title">${esc(m.title || "")}</p>
+      <p class="milestone-date editable" data-key="milestones.${i}.date">${target.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+      <p class="milestone-num">${num}</p>
+      <span class="milestone-unit">${unit}</span>
+    `;
+    wrap.appendChild(el);
+  });
+
+  wrap.querySelectorAll(".editable").forEach(bindEditable);
+}
+
+function addMilestone() {
+  MILESTONES.push({
+    emoji: "⭐",
+    title: "New milestone",
+    date: new Date().toISOString().slice(0, 10),
+    repeatYearly: true
+  });
+  renderMilestones();
+  toast("Milestone added — edit it, then click Save");
+}
 
 // ─── Toast ───
 let toastTimer;
@@ -104,6 +187,11 @@ async function loadStory() {
     if (!res.ok) throw new Error("HTTP " + res.status);
     story = await res.json();
     story = { ...FALLBACK, ...story };
+
+    // restore milestones if saved previously
+    if (Array.isArray(story.milestones) && story.milestones.length) {
+      MILESTONES = story.milestones;
+    }
   } catch (e) {
     console.error("story.json failed, using fallback:", e);
     story = JSON.parse(JSON.stringify(FALLBACK));
@@ -115,11 +203,10 @@ async function loadStory() {
 // RENDER
 // ═══════════════════════════════════════════════════════════
 function renderAll() {
-  // Simple top-level text fields
   document.querySelectorAll("[data-key]").forEach(el => {
     const key = el.dataset.key;
     if (!key || key === "letterBody") return;
-    if (key.startsWith("moments.") || key.startsWith("letterBody.")) return;
+    if (key.startsWith("moments.") || key.startsWith("letterBody.") || key.startsWith("milestones.")) return;
     if (story[key] !== undefined && story[key] !== null) {
       el.textContent = story[key];
     }
@@ -177,7 +264,6 @@ function renderAll() {
     g.appendChild(el);
   });
 
-  // Bind every editable element
   document.querySelectorAll(".editable").forEach(bindEditable);
 
   // Music player
@@ -205,7 +291,7 @@ function esc(s) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// EDITABLE TEXT
+// EDITABLE TEXT — handles normal fields + milestone fields
 // ═══════════════════════════════════════════════════════════
 function bindEditable(el) {
   if (el.dataset.bound) return;
@@ -232,6 +318,35 @@ function bindEditable(el) {
     const key = el.dataset.key;
     if (!key) return;
     const value = el.textContent.trim();
+
+    // ─── Milestone fields ───
+    if (key.startsWith("milestones.")) {
+      const parts = key.split(".");
+      const idx = parseInt(parts[1]);
+      const field = parts[2];
+      if (!MILESTONES[idx]) return;
+
+      if (field === "date") {
+        let parsed = new Date(value);
+        if (isNaN(parsed.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+          parsed = new Date(value + "T00:00:00");
+        }
+        if (isNaN(parsed.getTime())) {
+          toast("Could not read that date — try 'June 19, 2027'");
+          renderMilestones();
+          return;
+        }
+        MILESTONES[idx].date = parsed.toISOString().slice(0, 10);
+      } else if (field === "emoji") {
+        MILESTONES[idx].emoji = value || "⭐";
+      } else if (field === "title") {
+        MILESTONES[idx].title = value || "Untitled";
+      }
+      renderMilestones();
+      return;
+    }
+
+    // ─── Normal text ───
     setByPath(story, key, value);
   });
 
@@ -284,7 +399,7 @@ function pickImage(cb) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// ADD / REMOVE
+// ADD / REMOVE (moments, gallery)
 // ═══════════════════════════════════════════════════════════
 function addMoment() {
   if (!story.moments) story.moments = [];
@@ -332,12 +447,10 @@ async function saveToGitHub() {
   setSavePill("Saving…", "saving");
 
   try {
-    // 1. Upload every pending image (photos and songs)
     for (const img of pendingImages) {
       await putFile(img.path, img.base64, "Add " + img.name);
     }
 
-    // 2. Fix moment photo fields
     (story.moments || []).forEach(m => {
       if (m.__pendingPhoto) {
         m.photo = m.__pendingPhoto;
@@ -349,16 +462,16 @@ async function saveToGitHub() {
       delete m.__preview;
     });
 
-    // 3. Fix gallery entries
     if (Array.isArray(story.gallery)) {
       story.gallery = story.gallery.filter(src => !(typeof src === "string" && src.startsWith("data:")));
     }
 
-    // 4. Clear previews
     Object.keys(story).filter(k => k.startsWith("__galleryPreview_")).forEach(k => delete story[k]);
     pendingImages = [];
 
-    // 5. Commit story.json
+    // include milestone edits
+    story.milestones = MILESTONES;
+
     const json = JSON.stringify(story, null, 2);
     if (json.length > 5_000_000) {
       throw new Error("story.json too large — too many embedded images");
@@ -551,85 +664,6 @@ function openLightbox(src) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// MILESTONE COUNTDOWNS
-// ═══════════════════════════════════════════════════════════
-// Edit this array to change what shows on the page.
-// Date format: "YYYY-MM-DD". repeatYearly: true rolls it forward each year.
-const MILESTONES = [
-  {
-    emoji: "💕",
-    title: "Our anniversary",
-    date: "2026-06-19",
-    repeatYearly: true
-  },
-  {
-    emoji: "🎂",
-    title: "Her birthday",
-    date: "2026-08-15",
-    repeatYearly: true
-  },
-  {
-    emoji: "🎉",
-    title: "My birthday",
-    date: "2026-03-04",
-    repeatYearly: true
-  }
-];
-
-function nextOccurrence(dateStr, repeatYearly) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const [y, m, d] = dateStr.split("-").map(Number);
-  let target = new Date(y, m - 1, d);
-  if (repeatYearly) {
-    while (target < today) target.setFullYear(target.getFullYear() + 1);
-  }
-  return target;
-}
-
-function daysUntil(target) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((target - today) / 86400000);
-}
-
-function renderMilestones() {
-  const wrap = document.getElementById("milestones");
-  if (!wrap) return;
-  wrap.innerHTML = "";
-
-  MILESTONES.forEach(m => {
-    const target = nextOccurrence(m.date, m.repeatYearly);
-    const diff = daysUntil(target);
-
-    let num, unit, cls = "";
-    if (diff === 0) {
-      num = "Today";
-      unit = "🎉 celebrate!";
-      cls = "milestone-today";
-    } else if (diff < 0) {
-      num = Math.abs(diff);
-      unit = "days ago";
-      cls = "milestone-past";
-    } else {
-      num = diff;
-      unit = diff === 1 ? "day to go" : "days to go";
-    }
-
-    const el = document.createElement("div");
-    el.className = "milestone-card " + cls;
-    el.innerHTML = `
-      <span class="milestone-emoji">${m.emoji}</span>
-      <p class="milestone-title">${m.title}</p>
-      <p class="milestone-date">${target.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
-      <p class="milestone-num">${num}</p>
-      <span class="milestone-unit">${unit}</span>
-    `;
-    wrap.appendChild(el);
-  });
-}
-
-// ═══════════════════════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════════════════════
 document.addEventListener("DOMContentLoaded", async () => {
@@ -668,7 +702,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Delegated clicks for remove buttons + image pickers + view
+  // Delegated clicks
   document.addEventListener("click", (e) => {
     const t = e.target;
     if (!t.dataset || !t.dataset.act) return;
@@ -696,6 +730,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       e.stopPropagation();
       story.gallery.splice(i, 1);
       renderAll();
+    }
+    if (t.dataset.act === "rm-milestone") {
+      e.stopPropagation();
+      if (!confirm("Remove this milestone?")) return;
+      MILESTONES.splice(i, 1);
+      renderMilestones();
+      toast("Milestone removed — click Save to commit");
     }
     if (t.dataset.act === "pick-moment") {
       e.stopPropagation();
