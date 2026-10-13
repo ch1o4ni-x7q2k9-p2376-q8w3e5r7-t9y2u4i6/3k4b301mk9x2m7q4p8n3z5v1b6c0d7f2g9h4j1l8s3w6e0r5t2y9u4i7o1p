@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-//  Our Story — reader + in-page editor
+//  Our Story
 // ═══════════════════════════════════════════════════════════
 
 const API = "https://api.github.com";
@@ -10,7 +10,6 @@ let story = null;
 let isEditor = false;
 let pendingImages = [];
 
-// ─── Fallback content ───
 const FALLBACK = {
   heroSub: "A story written in moments",
   heroTitle: "Our Story",
@@ -34,53 +33,44 @@ const FALLBACK = {
   counterLabel: "We've been together for",
   finalTitle: "And this is just the beginning",
   finalText: "Every day with you is a gift. Here's to a thousand more memories.",
-  surprise: "You are my favorite person. I love you. ❤️",
+  surprise: "You are my favorite person. I love you.",
   songTitle: "Our song",
   songFile: "",
   moments: [
-    { date: "January 2023", title: "The day we met", text: "I still remember thinking — this is different.", photo: "" }
+    { date: "January 2023", title: "The day we met", text: "I still remember thinking: this is different.", photo: "" }
   ],
   gallery: []
 };
 
-// ═══════════════════════════════════════════════════════════
-// LOADER SAFETY — always hides loader, even if other code fails
-// ═══════════════════════════════════════════════════════════
-setTimeout(() => {
-  const l = document.getElementById("loader");
+setTimeout(function () {
+  var l = document.getElementById("loader");
   if (l) l.classList.add("hidden");
 }, 1200);
 
-// ═══════════════════════════════════════════════════════════
-// TOAST + SAVE PILL
-// ═══════════════════════════════════════════════════════════
-let toastTimer;
+var toastTimer;
 function toast(msg) {
-  const t = document.getElementById("toast");
+  var t = document.getElementById("toast");
   if (!t) { console.log(msg); return; }
   t.textContent = msg;
   t.classList.remove("hidden");
   t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
+  toastTimer = setTimeout(function () {
     t.classList.remove("show");
-    setTimeout(() => t.classList.add("hidden"), 300);
+    setTimeout(function () { t.classList.add("hidden"); }, 300);
   }, 2600);
 }
 
-function setSavePill(text, cls = "") {
-  const p = document.getElementById("savePill");
+function setSavePill(text, cls) {
+  var p = document.getElementById("savePill");
   if (!p) return;
   p.textContent = text;
-  p.className = "save-pill " + cls;
+  p.className = "save-pill " + (cls || "");
   p.classList.remove("hidden");
 }
 
-// ═══════════════════════════════════════════════════════════
-// ESCAPE HTML
-// ═══════════════════════════════════════════════════════════
 function esc(s) {
-  const d = document.createElement("div");
+  var d = document.createElement("div");
   d.textContent = s == null ? "" : s;
   return d.innerHTML;
 }
@@ -88,17 +78,17 @@ function esc(s) {
 // ═══════════════════════════════════════════════════════════
 // MILESTONES
 // ═══════════════════════════════════════════════════════════
-let MILESTONES = [
+var MILESTONES = [
   { emoji: "💕", title: "Our anniversary", date: "2026-06-19", repeatYearly: true },
   { emoji: "🎂", title: "Her birthday", date: "2026-08-15", repeatYearly: true },
   { emoji: "🎉", title: "My birthday", date: "2026-03-04", repeatYearly: true }
 ];
 
 function nextOccurrence(dateStr, repeatYearly) {
-  const today = new Date();
+  var today = new Date();
   today.setHours(0, 0, 0, 0);
-  const [y, m, d] = dateStr.split("-").map(Number);
-  let target = new Date(y, m - 1, d);
+  var parts = dateStr.split("-");
+  var target = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
   if (repeatYearly) {
     while (target < today) target.setFullYear(target.getFullYear() + 1);
   }
@@ -106,24 +96,24 @@ function nextOccurrence(dateStr, repeatYearly) {
 }
 
 function daysUntil(target) {
-  const today = new Date();
+  var today = new Date();
   today.setHours(0, 0, 0, 0);
   return Math.round((target - today) / 86400000);
 }
 
 function renderMilestones() {
-  const wrap = document.getElementById("milestones");
+  var wrap = document.getElementById("milestones");
   if (!wrap) return;
   wrap.innerHTML = "";
 
-  MILESTONES.forEach((m, i) => {
-    const target = nextOccurrence(m.date, m.repeatYearly);
-    const diff = daysUntil(target);
+  MILESTONES.forEach(function (m, i) {
+    var target = nextOccurrence(m.date, m.repeatYearly);
+    var diff = daysUntil(target);
 
-    let num, unit, cls = "";
+    var num, unit, cls = "";
     if (diff === 0) {
       num = "Today";
-      unit = "🎉 celebrate!";
+      unit = "celebrate!";
       cls = "milestone-today";
     } else if (diff < 0) {
       num = Math.abs(diff);
@@ -134,16 +124,15 @@ function renderMilestones() {
       unit = diff === 1 ? "day to go" : "days to go";
     }
 
-    const el = document.createElement("div");
+    var el = document.createElement("div");
     el.className = "milestone-card " + cls;
-    el.innerHTML = `
-      <button class="milestone-remove" data-act="rm-milestone" data-i="${i}" title="Remove">✕</button>
-      <span class="milestone-emoji editable" data-key="milestones.${i}.emoji">${m.emoji || "⭐"}</span>
-      <p class="milestone-title editable" data-key="milestones.${i}.title">${esc(m.title || "")}</p>
-      <p class="milestone-date editable" data-key="milestones.${i}.date">${target.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
-      <p class="milestone-num">${num}</p>
-      <span class="milestone-unit">${unit}</span>
-    `;
+    el.innerHTML =
+      '<button class="milestone-remove" data-act="rm-milestone" data-i="' + i + '" title="Remove">✕</button>' +
+      '<span class="milestone-emoji editable" data-key="milestones.' + i + '.emoji">' + (m.emoji || "⭐") + '</span>' +
+      '<p class="milestone-title editable" data-key="milestones.' + i + '.title">' + esc(m.title || "") + '</p>' +
+      '<p class="milestone-date editable" data-key="milestones.' + i + '.date">' + target.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) + '</p>' +
+      '<p class="milestone-num">' + num + '</p>' +
+      '<span class="milestone-unit">' + unit + '</span>';
     wrap.appendChild(el);
   });
 
@@ -158,26 +147,20 @@ function addMilestone() {
     repeatYearly: true
   });
   renderMilestones();
-  toast("Milestone added — edit it, then click Save");
+  toast("Milestone added");
 }
 
 // ═══════════════════════════════════════════════════════════
 // EDITOR ACCESS
 // ═══════════════════════════════════════════════════════════
 function checkEditorAccess() {
-  const params = new URLSearchParams(location.search);
+  var params = new URLSearchParams(location.search);
   if (!params.has("edit")) { isEditor = false; return; }
+  if (CONFIG.editKey && params.get("edit") !== CONFIG.editKey) { isEditor = false; return; }
 
-  if (CONFIG.editKey && params.get("edit") !== CONFIG.editKey) {
-    isEditor = false;
-    return;
-  }
-
-  let token = sessionStorage.getItem("gh_token") || "";
+  var token = sessionStorage.getItem("gh_token") || "";
   if (!token) {
-    token = (prompt(
-      "Paste your GitHub token (stays in this browser only, cleared when tab closes):"
-    ) || "").trim();
+    token = (prompt("Paste your GitHub token (stays in this browser only):") || "").trim();
     if (token) sessionStorage.setItem("gh_token", token);
   }
   if (!token) { isEditor = false; return; }
@@ -189,106 +172,112 @@ function checkEditorAccess() {
 // ═══════════════════════════════════════════════════════════
 // LOAD STORY
 // ═══════════════════════════════════════════════════════════
-async function loadStory() {
-  try {
-    const url = RAW(CONFIG.owner, CONFIG.repo, CONFIG.branch) + "/" + CONFIG.storyPath + "?t=" + Date.now();
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    story = await res.json();
-    story = { ...FALLBACK, ...story };
-
-    if (Array.isArray(story.milestones) && story.milestones.length) {
-      MILESTONES = story.milestones;
-    }
-  } catch (e) {
-    console.error("story.json failed, using fallback:", e);
-    story = JSON.parse(JSON.stringify(FALLBACK));
-    setTimeout(() => toast("Using fallback content — check story.json"), 700);
-  }
+function loadStory() {
+  var url = RAW(CONFIG.owner, CONFIG.repo, CONFIG.branch) + "/" + CONFIG.storyPath + "?t=" + Date.now();
+  return fetch(url, { cache: "no-store" })
+    .then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    })
+    .then(function (data) {
+      story = Object.assign({}, FALLBACK, data);
+      if (Array.isArray(story.milestones) && story.milestones.length) {
+        MILESTONES = story.milestones;
+      }
+    })
+    .catch(function (e) {
+      console.error("story.json failed:", e);
+      story = JSON.parse(JSON.stringify(FALLBACK));
+      setTimeout(function () { toast("Using fallback content"); }, 700);
+    });
 }
 
 // ═══════════════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════════════
 function renderAll() {
-  document.querySelectorAll("[data-key]").forEach(el => {
-    const key = el.dataset.key;
+  document.querySelectorAll("[data-key]").forEach(function (el) {
+    var key = el.dataset.key;
     if (!key || key === "letterBody") return;
-    if (key.startsWith("moments.") || key.startsWith("letterBody.") || key.startsWith("milestones.")) return;
+    if (key.indexOf("moments.") === 0) return;
+    if (key.indexOf("letterBody.") === 0) return;
+    if (key.indexOf("milestones.") === 0) return;
     if (story[key] !== undefined && story[key] !== null) {
       el.textContent = story[key];
     }
   });
 
-  const body = document.getElementById("letterBody");
+  var body = document.getElementById("letterBody");
   if (body) {
     body.innerHTML = "";
-    (story.letterBody || []).forEach((p, i) => {
-      const el = document.createElement("p");
+    (story.letterBody || []).forEach(function (p, i) {
+      var el = document.createElement("p");
       el.className = "editable";
-      el.dataset.key = `letterBody.${i}`;
+      el.dataset.key = "letterBody." + i;
       el.textContent = p;
       body.appendChild(el);
     });
   }
 
-  const tl = document.getElementById("timeline");
+  var tl = document.getElementById("timeline");
   if (tl) {
     tl.innerHTML = "";
-    (story.moments || []).forEach((m, i) => {
-      const el = document.createElement("div");
+    (story.moments || []).forEach(function (m, i) {
+      var el = document.createElement("div");
       el.className = "moment";
       el.dataset.index = i;
-      el.innerHTML = `
-        <div class="moment-card">
-          <button class="moment-remove" data-act="rm-moment" data-i="${i}">✕</button>
-          <div class="moment-photo-wrap">
-            <div class="image-picker" data-act="pick-moment" data-i="${i}">📷 Click to change photo</div>
-            ${(m.__preview || m.photo)
-              ? `<img class="moment-img" data-act="view-moment" data-i="${i}" src="${m.__preview || m.photo}" alt="" style="cursor:zoom-in;">`
-              : `<div class="moment-img" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;">📷 No photo yet</div>`}
-          </div>
-          <div class="moment-body">
-            <span class="moment-date editable" data-key="moments.${i}.date">${esc(m.date)}</span>
-            <h3 class="moment-title editable" data-key="moments.${i}.title">${esc(m.title)}</h3>
-            <p class="moment-text editable" data-key="moments.${i}.text">${esc(m.text)}</p>
-          </div>
-        </div>
-        <div class="moment-dot"></div>
-      `;
+      var imgHTML;
+      if (m.__preview || m.photo) {
+        imgHTML = '<img class="moment-img" data-act="view-moment" data-i="' + i + '" src="' + (m.__preview || m.photo) + '" alt="" style="cursor:zoom-in;">';
+      } else {
+        imgHTML = '<div class="moment-img" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;">No photo yet</div>';
+      }
+      el.innerHTML =
+        '<div class="moment-card">' +
+          '<button class="moment-remove" data-act="rm-moment" data-i="' + i + '">✕</button>' +
+          '<div class="moment-photo-wrap">' +
+            '<div class="image-picker" data-act="pick-moment" data-i="' + i + '">Click to change photo</div>' +
+            imgHTML +
+          '</div>' +
+          '<div class="moment-body">' +
+            '<span class="moment-date editable" data-key="moments.' + i + '.date">' + esc(m.date) + '</span>' +
+            '<h3 class="moment-title editable" data-key="moments.' + i + '.title">' + esc(m.title) + '</h3>' +
+            '<p class="moment-text editable" data-key="moments.' + i + '.text">' + esc(m.text) + '</p>' +
+          '</div>' +
+        '</div>' +
+        '<div class="moment-dot"></div>';
       tl.appendChild(el);
     });
   }
 
-  const g = document.getElementById("gallery");
+  var g = document.getElementById("gallery");
   if (g) {
     g.innerHTML = "";
-    (story.gallery || []).forEach((src, i) => {
-      const el = document.createElement("div");
+    (story.gallery || []).forEach(function (src, i) {
+      var el = document.createElement("div");
       el.className = "gallery-item";
-      el.innerHTML = `
-        <button class="gallery-remove" data-act="rm-photo" data-i="${i}">✕</button>
-        <div class="moment-photo-wrap" style="width:100%;height:100%;">
-          <div class="image-picker" data-act="pick-gallery" data-i="${i}">📷 Click to change</div>
-          <img src="${story["__galleryPreview_" + i] || src}" alt="" data-act="view-gallery" data-i="${i}" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in;">
-        </div>
-      `;
+      el.innerHTML =
+        '<button class="gallery-remove" data-act="rm-photo" data-i="' + i + '">✕</button>' +
+        '<div class="moment-photo-wrap" style="width:100%;height:100%;">' +
+          '<div class="image-picker" data-act="pick-gallery" data-i="' + i + '">Click to change</div>' +
+          '<img src="' + (story["__galleryPreview_" + i] || src) + '" alt="" data-act="view-gallery" data-i="' + i + '" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in;">' +
+        '</div>';
       g.appendChild(el);
     });
   }
 
   document.querySelectorAll(".editable").forEach(bindEditable);
 
-  const mt = document.getElementById("musicTitle");
+  var mt = document.getElementById("musicTitle");
   if (mt) mt.textContent = story.songTitle || "Our song";
-  const bg = document.getElementById("bgMusic");
+  var bg = document.getElementById("bgMusic");
   if (bg) bg.src = story.songFile || "";
-  const mp = document.getElementById("musicPlayer");
+  var mp = document.getElementById("musicPlayer");
   if (mp) mp.classList.toggle("hidden", !story.songFile);
 
   if (isEditor) {
-    const et = document.getElementById("editToggle");
-    const sp = document.getElementById("savePill");
+    var et = document.getElementById("editToggle");
+    var sp = document.getElementById("savePill");
     if (et) et.classList.remove("hidden");
     if (sp) sp.classList.remove("hidden");
     setSavePill("Ready");
@@ -305,40 +294,40 @@ function bindEditable(el) {
   el.dataset.bound = "1";
   el.setAttribute("tabindex", "0");
 
-  el.addEventListener("pointerdown", (e) => {
+  el.addEventListener("pointerdown", function (e) {
     if (!document.body.classList.contains("edit-mode")) return;
     if (e.target.closest(".image-picker")) return;
     e.stopPropagation();
     el.setAttribute("contenteditable", "true");
     el.focus();
-    const range = document.createRange();
+    var range = document.createRange();
     range.selectNodeContents(el);
     range.collapse(false);
-    const sel = window.getSelection();
+    var sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
   });
 
-  el.addEventListener("blur", () => {
+  el.addEventListener("blur", function () {
     if (!document.body.classList.contains("edit-mode")) return;
     el.removeAttribute("contenteditable");
-    const key = el.dataset.key;
+    var key = el.dataset.key;
     if (!key) return;
-    const value = el.textContent.trim();
+    var value = el.textContent.trim();
 
-    if (key.startsWith("milestones.")) {
-      const parts = key.split(".");
-      const idx = parseInt(parts[1]);
-      const field = parts[2];
+    if (key.indexOf("milestones.") === 0) {
+      var parts = key.split(".");
+      var idx = parseInt(parts[1]);
+      var field = parts[2];
       if (!MILESTONES[idx]) return;
 
       if (field === "date") {
-        let parsed = new Date(value);
+        var parsed = new Date(value);
         if (isNaN(parsed.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
           parsed = new Date(value + "T00:00:00");
         }
         if (isNaN(parsed.getTime())) {
-          toast("Could not read that date — try 'June 19, 2027'");
+          toast("Could not read that date");
           renderMilestones();
           return;
         }
@@ -355,8 +344,8 @@ function bindEditable(el) {
     setByPath(story, key, value);
   });
 
-  el.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey && !(el.dataset.key || "").includes("letterBody")) {
+  el.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey && (el.dataset.key || "").indexOf("letterBody") === -1) {
       e.preventDefault();
       el.blur();
     }
@@ -365,10 +354,10 @@ function bindEditable(el) {
 }
 
 function setByPath(obj, path, value) {
-  const parts = path.split(".");
-  let cur = obj;
-  for (let i = 0; i < parts.length - 1; i++) {
-    const p = parts[i];
+  var parts = path.split(".");
+  var cur = obj;
+  for (var i = 0; i < parts.length - 1; i++) {
+    var p = parts[i];
     if (cur[p] === undefined) cur[p] = {};
     cur = cur[p];
   }
@@ -379,64 +368,70 @@ function setByPath(obj, path, value) {
 // IMAGE HELPERS
 // ═══════════════════════════════════════════════════════════
 function fileToDataURL(file) {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result);
+  return new Promise(function (res, rej) {
+    var r = new FileReader();
+    r.onload = function () { res(r.result); };
     r.onerror = rej;
     r.readAsDataURL(file);
   });
 }
 
 function pickImage(cb) {
-  const input = document.getElementById("imgInput");
+  var input = document.getElementById("imgInput");
   input.value = "";
   input.multiple = false;
-  input.onchange = async () => {
-    const file = input.files[0];
+  input.onchange = function () {
+    var file = input.files[0];
     if (!file) return;
-    const dataUrl = await fileToDataURL(file);
-    const base64 = dataUrl.split(",")[1];
-    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-    const name = "photo-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6) + "." + ext;
-    cb({ name, base64, dataUrl });
+    fileToDataURL(file).then(function (dataUrl) {
+      var base64 = dataUrl.split(",")[1];
+      var ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      var name = "photo-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6) + "." + ext;
+      cb({ name: name, base64: base64, dataUrl: dataUrl });
+    });
   };
   input.click();
 }
 
 // ═══════════════════════════════════════════════════════════
-// ADD MOMENT / ADD PHOTOS
+// ADD
 // ═══════════════════════════════════════════════════════════
 function addMoment() {
   if (!story.moments) story.moments = [];
   story.moments.push({ date: "Month Year", title: "New moment", text: "Write your story here...", photo: "" });
   renderAll();
-  toast("Moment added — edit it, add a photo, then click Save");
+  toast("Moment added");
 }
 
 function addPhotosFromInput() {
-  const input = document.getElementById("imgInput");
+  var input = document.getElementById("imgInput");
   input.value = "";
   input.multiple = true;
-  input.onchange = async () => {
-    const files = [...input.files];
+  input.onchange = function () {
+    var files = Array.from(input.files);
     if (!files.length) return;
     if (!story.gallery) story.gallery = [];
 
-    for (const file of files) {
-      const dataUrl = await fileToDataURL(file);
-      const base64 = dataUrl.split(",")[1];
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const name = "photo-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6) + "." + ext;
-      const path = CONFIG.photosPath + name;
+    var chain = Promise.resolve();
+    files.forEach(function (file) {
+      chain = chain.then(function () {
+        return fileToDataURL(file).then(function (dataUrl) {
+          var base64 = dataUrl.split(",")[1];
+          var ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+          var name = "photo-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6) + "." + ext;
+          var path = CONFIG.photosPath + name;
+          story.gallery.push(path);
+          var idx = story.gallery.length - 1;
+          story["__galleryPreview_" + idx] = dataUrl;
+          pendingImages.push({ name: name, base64: base64, path: path });
+        });
+      });
+    });
 
-      story.gallery.push(path);
-      const idx = story.gallery.length - 1;
-      story["__galleryPreview_" + idx] = dataUrl;
-      pendingImages.push({ name, base64, path });
-    }
-
-    renderAll();
-    toast(files.length + " photo(s) ready — click Save");
+    chain.then(function () {
+      renderAll();
+      toast(files.length + " photo(s) ready");
+    });
   };
   input.click();
 }
@@ -444,155 +439,156 @@ function addPhotosFromInput() {
 // ═══════════════════════════════════════════════════════════
 // SAVE
 // ═══════════════════════════════════════════════════════════
-async function saveToGitHub() {
-  const token = sessionStorage.getItem("gh_token") || CONFIG.token || "";
-  if (!token) { toast("No token — reload the ?edit= page"); return; }
+function saveToGitHub() {
+  var token = sessionStorage.getItem("gh_token") || CONFIG.token || "";
+  if (!token) { toast("No token"); return Promise.resolve(); }
   CONFIG.token = token;
 
-  setSavePill("Saving…", "saving");
+  setSavePill("Saving...", "saving");
 
-  try {
-    for (const img of pendingImages) {
-      await putFile(img.path, img.base64, "Add " + img.name);
-    }
+  var uploads = pendingImages.map(function (img) {
+    return putFile(img.path, img.base64, "Add " + img.name);
+  });
 
-    (story.moments || []).forEach(m => {
-      if (m.__pendingPhoto) {
-        m.photo = m.__pendingPhoto;
-        delete m.__pendingPhoto;
-      }
-      if (typeof m.photo === "string" && m.photo.startsWith("data:")) {
-        m.photo = "";
-      }
+  return Promise.all(uploads).then(function () {
+    (story.moments || []).forEach(function (m) {
+      if (m.__pendingPhoto) { m.photo = m.__pendingPhoto; delete m.__pendingPhoto; }
+      if (typeof m.photo === "string" && m.photo.indexOf("data:") === 0) m.photo = "";
       delete m.__preview;
     });
 
     if (Array.isArray(story.gallery)) {
-      story.gallery = story.gallery.filter(src => !(typeof src === "string" && src.startsWith("data:")));
+      story.gallery = story.gallery.filter(function (src) {
+        return !(typeof src === "string" && src.indexOf("data:") === 0);
+      });
     }
 
-    Object.keys(story).filter(k => k.startsWith("__galleryPreview_")).forEach(k => delete story[k]);
+    Object.keys(story).forEach(function (k) {
+      if (k.indexOf("__galleryPreview_") === 0) delete story[k];
+    });
     pendingImages = [];
 
     story.milestones = MILESTONES;
 
-    const json = JSON.stringify(story, null, 2);
-    if (json.length > 5_000_000) {
-      throw new Error("story.json too large — too many embedded images");
-    }
-    const base64 = btoa(unescape(encodeURIComponent(json)));
-    await putFile(CONFIG.storyPath, base64, "Update story");
+    var json = JSON.stringify(story, null, 2);
+    if (json.length > 5000000) throw new Error("story.json too large");
 
-    setSavePill("Saved ✓", "saved");
-    toast("Saved! GitHub Pages updates in ~30s");
-  } catch (e) {
+    var base64 = btoa(unescape(encodeURIComponent(json)));
+    return putFile(CONFIG.storyPath, base64, "Update story");
+  }).then(function () {
+    setSavePill("Saved", "saved");
+    toast("Saved!");
+  }).catch(function (e) {
     console.error(e);
     setSavePill("Error: " + e.message, "error");
     toast("Save failed: " + e.message);
-  }
+  });
 }
 
-async function putFile(path, base64Content, message) {
-  const url = `${API}/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${path}`;
-  const headers = {
-    "Authorization": `Bearer ${CONFIG.token}`,
+function putFile(path, base64Content, message) {
+  var url = API + "/repos/" + CONFIG.owner + "/" + CONFIG.repo + "/contents/" + path;
+  var headers = {
+    "Authorization": "Bearer " + CONFIG.token,
     "Accept": "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
     "Content-Type": "application/json"
   };
 
-  let sha = null;
-  try {
-    const r = await fetch(url, { headers });
-    if (r.ok) { const d = await r.json(); sha = d.sha; }
-  } catch (err) {}
+  return fetch(url, { headers: headers })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (existing) {
+      var body = { message: message, content: base64Content, branch: CONFIG.branch };
+      if (existing && existing.sha) body.sha = existing.sha;
 
-  const body = { message, content: base64Content, branch: CONFIG.branch };
-  if (sha) body.sha = sha;
-
-  const res = await fetch(url, { method: "PUT", headers, body: JSON.stringify(body) });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || ("HTTP " + res.status));
-  }
-  return res.json();
+      return fetch(url, {
+        method: "PUT",
+        headers: headers,
+        body: JSON.stringify(body)
+      });
+    })
+    .then(function (res) {
+      if (!res.ok) {
+        return res.json().catch(function () { return {}; }).then(function (err) {
+          throw new Error(err.message || ("HTTP " + res.status));
+        });
+      }
+      return res.json();
+    });
 }
 
 // ═══════════════════════════════════════════════════════════
 // MUSIC
 // ═══════════════════════════════════════════════════════════
 function changeMusic() {
-  const input = document.getElementById("musicInput");
+  var input = document.getElementById("musicInput");
   input.value = "";
-  input.onchange = async () => {
-    const file = input.files[0];
+  input.onchange = function () {
+    var file = input.files[0];
     if (!file) return;
-    if (file.size > 25 * 1024 * 1024) {
-      toast("Please pick an audio file under 25 MB");
-      return;
-    }
-    const dataUrl = await fileToDataURL(file);
-    const base64 = dataUrl.split(",")[1];
-    const ext = (file.name.split(".").pop() || "mp3").toLowerCase();
-    const name = "song-" + Date.now() + "." + ext;
-    const path = CONFIG.musicPath + name;
-    pendingImages.push({ name, base64, path });
-    story.songFile = path;
-    story.songTitle = file.name.replace(/\.[^.]+$/, "");
-    const mt = document.getElementById("musicTitle");
-    if (mt) mt.textContent = story.songTitle;
-    const audio = document.getElementById("bgMusic");
-    if (audio) audio.src = dataUrl;
-    const mp = document.getElementById("musicPlayer");
-    if (mp) mp.classList.remove("hidden");
-    toast("Music ready — click Save");
+    if (file.size > 25 * 1024 * 1024) { toast("Audio file too large"); return; }
+    fileToDataURL(file).then(function (dataUrl) {
+      var base64 = dataUrl.split(",")[1];
+      var ext = (file.name.split(".").pop() || "mp3").toLowerCase();
+      var name = "song-" + Date.now() + "." + ext;
+      var path = CONFIG.musicPath + name;
+      pendingImages.push({ name: name, base64: base64, path: path });
+      story.songFile = path;
+      story.songTitle = file.name.replace(/\.[^.]+$/, "");
+      var mt = document.getElementById("musicTitle");
+      if (mt) mt.textContent = story.songTitle;
+      var audio = document.getElementById("bgMusic");
+      if (audio) audio.src = dataUrl;
+      var mp = document.getElementById("musicPlayer");
+      if (mp) mp.classList.remove("hidden");
+      toast("Music ready");
+    });
   };
   input.click();
 }
 
 // ═══════════════════════════════════════════════════════════
-// UI EXTRAS
+// UI
 // ═══════════════════════════════════════════════════════════
 function openEditor() {
   document.body.classList.add("edit-mode");
-  const et = document.getElementById("editToolbar");
+  var et = document.getElementById("editToolbar");
   if (et) et.classList.add("open");
-  toast("Edit mode — click any text to change it, then Save");
+  toast("Edit mode on");
 }
 
 function closeEditor() {
   document.body.classList.remove("edit-mode");
-  const et = document.getElementById("editToolbar");
+  var et = document.getElementById("editToolbar");
   if (et) et.classList.remove("open");
 }
 
 function initMusicPlayer() {
-  const audio = document.getElementById("bgMusic");
-  const btn = document.getElementById("musicBtn");
-  const player = document.getElementById("musicPlayer");
+  var audio = document.getElementById("bgMusic");
+  var btn = document.getElementById("musicBtn");
+  var player = document.getElementById("musicPlayer");
   if (!btn || !audio || !player) return;
-  const playIcon = btn.querySelector(".music-icon-play");
-  const pauseIcon = btn.querySelector(".music-icon-pause");
+  var playIcon = btn.querySelector(".music-icon-play");
+  var pauseIcon = btn.querySelector(".music-icon-pause");
 
-  const tryPlay = () => {
+  var tryPlay = function () {
     if (!audio.src) return;
-    audio.play().then(() => {
+    audio.play().then(function () {
       player.classList.add("playing");
       if (playIcon) playIcon.classList.add("hidden");
       if (pauseIcon) pauseIcon.classList.remove("hidden");
-    }).catch(() => {});
+    }).catch(function () {});
   };
   document.addEventListener("click", tryPlay, { once: true });
 
-  btn.addEventListener("click", (e) => {
+  btn.addEventListener("click", function (e) {
     e.stopPropagation();
     if (!audio.src) return;
     if (audio.paused) {
-      audio.play().then(() => {
+      audio.play().then(function () {
         player.classList.add("playing");
         if (playIcon) playIcon.classList.add("hidden");
         if (pauseIcon) pauseIcon.classList.remove("hidden");
-      }).catch(() => {});
+      }).catch(function () {});
     } else {
       audio.pause();
       player.classList.remove("playing");
@@ -604,14 +600,14 @@ function initMusicPlayer() {
 
 function initCounter() {
   function tick() {
-    const start = new Date(story.startDate || "2023-01-01T00:00:00");
-    const diff = Date.now() - start.getTime();
+    var start = new Date(story.startDate || "2023-01-01T00:00:00");
+    var diff = Date.now() - start.getTime();
     if (diff < 0) return;
-    const s = Math.floor(diff / 1000);
-    const d = document.getElementById("days");
-    const h = document.getElementById("hours");
-    const m = document.getElementById("minutes");
-    const sec = document.getElementById("seconds");
+    var s = Math.floor(diff / 1000);
+    var d = document.getElementById("days");
+    var h = document.getElementById("hours");
+    var m = document.getElementById("minutes");
+    var sec = document.getElementById("seconds");
     if (d) d.textContent = Math.floor(s / 86400).toLocaleString();
     if (h) h.textContent = Math.floor((s % 86400) / 3600);
     if (m) m.textContent = Math.floor((s % 3600) / 60);
@@ -622,19 +618,19 @@ function initCounter() {
 }
 
 function initSurprise() {
-  const btn = document.getElementById("heartBtn");
+  var btn = document.getElementById("heartBtn");
   if (!btn) return;
-  btn.addEventListener("click", () => {
-    const t = document.getElementById("finalText");
+  btn.addEventListener("click", function () {
+    var t = document.getElementById("finalText");
     if (t) {
-      t.textContent = story.surprise || "I love you ❤️";
+      t.textContent = story.surprise || "I love you";
       t.style.color = "var(--pink-soft)";
     }
-    const rain = document.getElementById("heartRain");
+    var rain = document.getElementById("heartRain");
     if (rain) {
-      const hearts = ["❤","💕","💖","💗","💘","💝","🌸","✨"];
-      for (let i = 0; i < 50; i++) {
-        const h = document.createElement("div");
+      var hearts = ["❤", "💕", "💖", "💗", "💘", "💝", "🌸", "✨"];
+      for (var i = 0; i < 50; i++) {
+        var h = document.createElement("div");
         h.className = "heart-drop";
         h.textContent = hearts[Math.floor(Math.random() * hearts.length)];
         h.style.left = Math.random() * 100 + "vw";
@@ -642,20 +638,22 @@ function initSurprise() {
         h.style.animationDuration = (3 + Math.random() * 3) + "s";
         h.style.animationDelay = (Math.random() * 1.5) + "s";
         rain.appendChild(h);
-        setTimeout(() => h.remove(), 8000);
+        (function (node) {
+          setTimeout(function () { node.remove(); }, 8000);
+        })(h);
       }
     }
-    const sp = btn.querySelector("span");
-    if (sp) sp.textContent = "I love you ❤️";
+    var sp = btn.querySelector("span");
+    if (sp) sp.textContent = "I love you";
   });
 }
 
 function initPetals() {
-  const wrap = document.getElementById("petals");
+  var wrap = document.getElementById("petals");
   if (!wrap) return;
-  const shapes = ["❤","🌸","✿","❀","♥","✾"];
-  for (let i = 0; i < 18; i++) {
-    const p = document.createElement("div");
+  var shapes = ["❤", "🌸", "✿", "❀", "♥", "✾"];
+  for (var i = 0; i < 18; i++) {
+    var p = document.createElement("div");
     p.className = "petal";
     p.textContent = shapes[Math.floor(Math.random() * shapes.length)];
     p.style.left = Math.random() * 100 + "vw";
@@ -667,135 +665,140 @@ function initPetals() {
 }
 
 function initScrollAnims() {
-  const obs = new IntersectionObserver(entries => {
-    entries.forEach(e => {
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
       if (e.isIntersecting) {
         e.target.classList.add("visible");
         obs.unobserve(e.target);
       }
     });
   }, { threshold: 0.15 });
-  document.querySelectorAll(".moment").forEach(m => obs.observe(m));
+  document.querySelectorAll(".moment").forEach(function (m) { obs.observe(m); });
 }
 
 function openLightbox(src) {
-  const lb = document.getElementById("lightbox");
+  var lb = document.getElementById("lightbox");
   if (!lb) return;
   lb.querySelector("img").src = src;
   lb.classList.add("open");
 }
 
 // ═══════════════════════════════════════════════════════════
-// DELEGATED CLICKS + BOOT
+// DELEGATED CLICKS
 // ═══════════════════════════════════════════════════════════
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("click", function (e) {
+  var t = e.target;
+  if (!t.dataset || !t.dataset.act) return;
+  var i = parseInt(t.dataset.i);
+
+  if (t.dataset.act === "view-moment") {
+    e.stopPropagation();
+    var src = (story.moments[i] && (story.moments[i].__preview || story.moments[i].photo)) || "";
+    if (src) openLightbox(src);
+    return;
+  }
+  if (t.dataset.act === "view-gallery") {
+    e.stopPropagation();
+    var s2 = story["__galleryPreview_" + i] || (story.gallery && story.gallery[i]);
+    if (s2) openLightbox(s2);
+    return;
+  }
+  if (t.dataset.act === "rm-moment") {
+    e.stopPropagation();
+    if (!confirm("Remove this moment?")) return;
+    story.moments.splice(i, 1);
+    renderAll();
+  }
+  if (t.dataset.act === "rm-photo") {
+    e.stopPropagation();
+    story.gallery.splice(i, 1);
+    renderAll();
+  }
+  if (t.dataset.act === "rm-milestone") {
+    e.stopPropagation();
+    if (!confirm("Remove this milestone?")) return;
+    MILESTONES.splice(i, 1);
+    renderMilestones();
+    toast("Milestone removed");
+  }
+  if (t.dataset.act === "pick-moment") {
+    e.stopPropagation();
+    pickImage(function (o) {
+      var path = CONFIG.photosPath + o.name;
+      pendingImages.push({ name: o.name, base64: o.base64, path: path });
+      story.moments[i].__preview = o.dataUrl;
+      story.moments[i].__pendingPhoto = path;
+      story.moments[i].photo = path;
+      renderAll();
+      toast("Photo ready");
+    });
+  }
+  if (t.dataset.act === "pick-gallery") {
+    e.stopPropagation();
+    pickImage(function (o) {
+      var path = CONFIG.photosPath + o.name;
+      pendingImages.push({ name: o.name, base64: o.base64, path: path });
+      story.gallery[i] = path;
+      story["__galleryPreview_" + i] = o.dataUrl;
+      renderAll();
+      toast("Photo ready");
+    });
+  }
+});
+
+document.addEventListener("contextmenu", function (e) {
+  if (e.target.tagName === "IMG") e.preventDefault();
+});
+
+// ═══════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════
+document.addEventListener("DOMContentLoaded", function () {
   checkEditorAccess();
-  await loadStory();
-  renderAll();
-  renderMilestones();
-  initMusicPlayer();
-  initCounter();
-  initSurprise();
-  initPetals();
+  loadStory().then(function () {
+    renderAll();
+    renderMilestones();
+    initMusicPlayer();
+    initCounter();
+    initSurprise();
+    initPetals();
 
-  const startBtn = document.getElementById("startBtn");
-  if (startBtn) startBtn.onclick = () =>
-    document.querySelector(".timeline-section").scrollIntoView({ behavior: "smooth" });
+    var startBtn = document.getElementById("startBtn");
+    if (startBtn) startBtn.onclick = function () {
+      var ts = document.querySelector(".timeline-section");
+      if (ts) ts.scrollIntoView({ behavior: "smooth" });
+    };
 
-  const editToggle = document.getElementById("editToggle");
-  if (editToggle) editToggle.onclick = () => {
-    if (document.body.classList.contains("edit-mode")) closeEditor();
-    else openEditor();
-  };
-
-  const etDone = document.getElementById("etDone");
-  if (etDone) etDone.onclick = async () => {
-    await saveToGitHub();
-    closeEditor();
-  };
-
-  const etAddMoment = document.getElementById("etAddMoment");
-  if (etAddMoment) etAddMoment.onclick = addMoment;
-
-  const etAddPhoto = document.getElementById("etAddPhoto");
-  if (etAddPhoto) etAddPhoto.onclick = addPhotosFromInput;
-
-  const etChangeMusic = document.getElementById("etChangeMusic");
-  if (etChangeMusic) etChangeMusic.onclick = changeMusic;
-
-  const lightbox = document.getElementById("lightbox");
-  if (lightbox) lightbox.onclick = () => lightbox.classList.remove("open");
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      if (lightbox) lightbox.classList.remove("open");
+    var editToggle = document.getElementById("editToggle");
+    if (editToggle) editToggle.onclick = function () {
       if (document.body.classList.contains("edit-mode")) closeEditor();
-    }
+      else openEditor();
+    };
+
+    var etDone = document.getElementById("etDone");
+    if (etDone) etDone.onclick = function () {
+      saveToGitHub().then(function () { closeEditor(); });
+    };
+
+    var etAddMoment = document.getElementById("etAddMoment");
+    if (etAddMoment) etAddMoment.onclick = addMoment;
+
+    var etAddPhoto = document.getElementById("etAddPhoto");
+    if (etAddPhoto) etAddPhoto.onclick = addPhotosFromInput;
+
+    var etChangeMusic = document.getElementById("etChangeMusic");
+    if (etChangeMusic) etChangeMusic.onclick = changeMusic;
+
+    var lightbox = document.getElementById("lightbox");
+    if (lightbox) lightbox.onclick = function () { lightbox.classList.remove("open"); };
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        if (lightbox) lightbox.classList.remove("open");
+        if (document.body.classList.contains("edit-mode")) closeEditor();
+      }
+    });
+
+    setInterval(renderMilestones, 3600 * 1000);
   });
-
-  document.addEventListener("click", (e) => {
-    const t = e.target;
-    if (!t.dataset || !t.dataset.act) return;
-    const i = parseInt(t.dataset.i);
-
-    if (t.dataset.act === "view-moment") {
-      e.stopPropagation();
-      const src = story.moments[i]?.__preview || story.moments[i]?.photo;
-      if (src) openLightbox(src);
-      return;
-    }
-    if (t.dataset.act === "view-gallery") {
-      e.stopPropagation();
-      const src = story["__galleryPreview_" + i] || story.gallery[i];
-      if (src) openLightbox(src);
-      return;
-    }
-    if (t.dataset.act === "rm-moment") {
-      e.stopPropagation();
-      if (!confirm("Remove this moment?")) return;
-      story.moments.splice(i, 1);
-      renderAll();
-    }
-    if (t.dataset.act === "rm-photo") {
-      e.stopPropagation();
-      story.gallery.splice(i, 1);
-      renderAll();
-    }
-    if (t.dataset.act === "rm-milestone") {
-      e.stopPropagation();
-      if (!confirm("Remove this milestone?")) return;
-      MILESTONES.splice(i, 1);
-      renderMilestones();
-      toast("Milestone removed — click Save to commit");
-    }
-    if (t.dataset.act === "pick-moment") {
-      e.stopPropagation();
-      pickImage(({ name, base64, dataUrl }) => {
-        const path = CONFIG.photosPath + name;
-        pendingImages.push({ name, base64, path });
-        story.moments[i].__preview = dataUrl;
-        story.moments[i].__pendingPhoto = path;
-        story.moments[i].photo = path;
-        renderAll();
-        toast("Photo ready — click Save");
-      });
-    }
-    if (t.dataset.act === "pick-gallery") {
-      e.stopPropagation();
-      pickImage(({ name, base64, dataUrl }) => {
-        const path = CONFIG.photosPath + name;
-        pendingImages.push({ name, base64, path });
-        story.gallery[i] = path;
-        story["__galleryPreview_" + i] = dataUrl;
-        renderAll();
-        toast("Photo ready — click Save");
-      });
-    }
-  });
-
-  document.addEventListener("contextmenu", (e) => {
-    if (e.target.tagName === "IMG") e.preventDefault();
-  });
-
-  setInterval(renderMilestones, 3600 * 1000);
 });
