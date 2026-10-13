@@ -65,5 +65,25 @@
   "gallery": [
     "photos/photo-1791836928438-ng02.png",
     "photos/photo-1791836952168-cdub.png"
+  ],
+  "milestones": [
+    {
+      "emoji": "💕",
+      "title": "Our anniversary",
+      "date": "2026-06-19",
+      "repeatYearly": true
+    },
+    {
+      "emoji": "🎂",
+      "title": "Her birthday",
+      "date": "2026-08-15",
+      "repeatYearly": true
+    },
+    {
+      "emoji": "🎉",
+      "title": "My birthday",
+      "date": "2026-03-04",
+      "repeatYearly": true
+    }
   ]
 }
