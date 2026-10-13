@@ -494,8 +494,7 @@ body.edit-mode .gallery-item:hover .image-picker { display: flex; }
 }
 
 
-img, .cropped-photo, .moment-img, .gallery-item img {
-  pointer-events: none;
+img, .moment-img, .gallery-item img {
   user-select: none;
   -webkit-user-drag: none;
 }
