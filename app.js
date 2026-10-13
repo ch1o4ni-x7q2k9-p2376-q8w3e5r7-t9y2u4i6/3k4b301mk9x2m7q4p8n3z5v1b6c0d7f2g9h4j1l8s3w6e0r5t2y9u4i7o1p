@@ -364,7 +364,7 @@ function saveToGitHub() {
       if (k.indexOf("__galleryPreview_") === 0) delete story[k];
     });
     pendingImages = [];
-
+        story.milestones = MILESTONES;
     var json = JSON.stringify(story, null, 2);
     if (json.length > 5000000) throw new Error("story.json too large");
 
@@ -652,6 +652,7 @@ document.addEventListener("DOMContentLoaded", function () {
   checkEditorAccess();
   loadStory().then(function () {
     renderAll();
+    renderMilestones();
     initMusicPlayer();
     initCounter();
     initSurprise();
