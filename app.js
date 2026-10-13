@@ -1,12 +1,5 @@
 // ═══════════════════════════════════════════════════════════
 //  Our Story — reader + in-page editor
-//  Token is entered once per session, kept in sessionStorage,
-//  never stored in the repo.
-// ═══════════════════════════════════════════════════════════
-window.MILESTONES = window.MILESTONES || [];
-
-// ═══════════════════════════════════════════════════════════
-//  Our Story — reader + in-page editor
 // ═══════════════════════════════════════════════════════════
 
 const API = "https://api.github.com";
@@ -51,7 +44,15 @@ const FALLBACK = {
 };
 
 // ═══════════════════════════════════════════════════════════
-// TOAST + SAVE PILL (top-level, used everywhere)
+// LOADER SAFETY — always hides loader, even if other code fails
+// ═══════════════════════════════════════════════════════════
+setTimeout(() => {
+  const l = document.getElementById("loader");
+  if (l) l.classList.add("hidden");
+}, 1200);
+
+// ═══════════════════════════════════════════════════════════
+// TOAST + SAVE PILL
 // ═══════════════════════════════════════════════════════════
 let toastTimer;
 function toast(msg) {
@@ -76,7 +77,16 @@ function setSavePill(text, cls = "") {
 }
 
 // ═══════════════════════════════════════════════════════════
-// MILESTONES — all functions at top level so onclick works
+// ESCAPE HTML
+// ═══════════════════════════════════════════════════════════
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s == null ? "" : s;
+  return d.innerHTML;
+}
+
+// ═══════════════════════════════════════════════════════════
+// MILESTONES
 // ═══════════════════════════════════════════════════════════
 let MILESTONES = [
   { emoji: "💕", title: "Our anniversary", date: "2026-06-19", repeatYearly: true },
@@ -198,19 +208,9 @@ async function loadStory() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// ESCAPE HTML
-// ═══════════════════════════════════════════════════════════
-function esc(s) {
-  const d = document.createElement("div");
-  d.textContent = s == null ? "" : s;
-  return d.innerHTML;
-}
-
-// ═══════════════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════════════
 function renderAll() {
-  // Simple top-level text fields
   document.querySelectorAll("[data-key]").forEach(el => {
     const key = el.dataset.key;
     if (!key || key === "letterBody") return;
@@ -220,63 +220,65 @@ function renderAll() {
     }
   });
 
-  // Letter body
   const body = document.getElementById("letterBody");
-  body.innerHTML = "";
-  (story.letterBody || []).forEach((p, i) => {
-    const el = document.createElement("p");
-    el.className = "editable";
-    el.dataset.key = `letterBody.${i}`;
-    el.textContent = p;
-    body.appendChild(el);
-  });
+  if (body) {
+    body.innerHTML = "";
+    (story.letterBody || []).forEach((p, i) => {
+      const el = document.createElement("p");
+      el.className = "editable";
+      el.dataset.key = `letterBody.${i}`;
+      el.textContent = p;
+      body.appendChild(el);
+    });
+  }
 
-  // Timeline
   const tl = document.getElementById("timeline");
-  tl.innerHTML = "";
-  (story.moments || []).forEach((m, i) => {
-    const el = document.createElement("div");
-    el.className = "moment";
-    el.dataset.index = i;
-    el.innerHTML = `
-      <div class="moment-card">
-        <button class="moment-remove" data-act="rm-moment" data-i="${i}">✕</button>
-        <div class="moment-photo-wrap">
-          <div class="image-picker" data-act="pick-moment" data-i="${i}">📷 Click to change photo</div>
-          ${(m.__preview || m.photo)
-            ? `<img class="moment-img" data-act="view-moment" data-i="${i}" src="${m.__preview || m.photo}" alt="" style="cursor:zoom-in;">`
-            : `<div class="moment-img" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;">📷 No photo yet</div>`}
+  if (tl) {
+    tl.innerHTML = "";
+    (story.moments || []).forEach((m, i) => {
+      const el = document.createElement("div");
+      el.className = "moment";
+      el.dataset.index = i;
+      el.innerHTML = `
+        <div class="moment-card">
+          <button class="moment-remove" data-act="rm-moment" data-i="${i}">✕</button>
+          <div class="moment-photo-wrap">
+            <div class="image-picker" data-act="pick-moment" data-i="${i}">📷 Click to change photo</div>
+            ${(m.__preview || m.photo)
+              ? `<img class="moment-img" data-act="view-moment" data-i="${i}" src="${m.__preview || m.photo}" alt="" style="cursor:zoom-in;">`
+              : `<div class="moment-img" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;">📷 No photo yet</div>`}
+          </div>
+          <div class="moment-body">
+            <span class="moment-date editable" data-key="moments.${i}.date">${esc(m.date)}</span>
+            <h3 class="moment-title editable" data-key="moments.${i}.title">${esc(m.title)}</h3>
+            <p class="moment-text editable" data-key="moments.${i}.text">${esc(m.text)}</p>
+          </div>
         </div>
-        <div class="moment-body">
-          <span class="moment-date editable" data-key="moments.${i}.date">${esc(m.date)}</span>
-          <h3 class="moment-title editable" data-key="moments.${i}.title">${esc(m.title)}</h3>
-          <p class="moment-text editable" data-key="moments.${i}.text">${esc(m.text)}</p>
-        </div>
-      </div>
-      <div class="moment-dot"></div>
-    `;
-    tl.appendChild(el);
-  });
+        <div class="moment-dot"></div>
+      `;
+      tl.appendChild(el);
+    });
+  }
 
-  // Gallery
   const g = document.getElementById("gallery");
-  g.innerHTML = "";
-  (story.gallery || []).forEach((src, i) => {
-    const el = document.createElement("div");
-    el.className = "gallery-item";
-    el.innerHTML = `
-      <button class="gallery-remove" data-act="rm-photo" data-i="${i}">✕</button>
-      <div class="moment-photo-wrap" style="width:100%;height:100%;">
-        <div class="image-picker" data-act="pick-gallery" data-i="${i}">📷 Click to change</div>
-        <img src="${story["__galleryPreview_" + i] || src}" alt="" data-act="view-gallery" data-i="${i}" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in;">
-      </div>
-    `;
-    g.appendChild(el);
-  });
+  if (g) {
+    g.innerHTML = "";
+    (story.gallery || []).forEach((src, i) => {
+      const el = document.createElement("div");
+      el.className = "gallery-item";
+      el.innerHTML = `
+        <button class="gallery-remove" data-act="rm-photo" data-i="${i}">✕</button>
+        <div class="moment-photo-wrap" style="width:100%;height:100%;">
+          <div class="image-picker" data-act="pick-gallery" data-i="${i}">📷 Click to change</div>
+          <img src="${story["__galleryPreview_" + i] || src}" alt="" data-act="view-gallery" data-i="${i}" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in;">
+        </div>
+      `;
+      g.appendChild(el);
+    });
+  }
 
   document.querySelectorAll(".editable").forEach(bindEditable);
 
-  // Music
   const mt = document.getElementById("musicTitle");
   if (mt) mt.textContent = story.songTitle || "Our song";
   const bg = document.getElementById("bgMusic");
@@ -284,10 +286,11 @@ function renderAll() {
   const mp = document.getElementById("musicPlayer");
   if (mp) mp.classList.toggle("hidden", !story.songFile);
 
-  // Editor UI
   if (isEditor) {
-    document.getElementById("editToggle").classList.remove("hidden");
-    document.getElementById("savePill").classList.remove("hidden");
+    const et = document.getElementById("editToggle");
+    const sp = document.getElementById("savePill");
+    if (et) et.classList.remove("hidden");
+    if (sp) sp.classList.remove("hidden");
     setSavePill("Ready");
   }
 
@@ -295,7 +298,7 @@ function renderAll() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// EDITABLE — handles both normal fields and milestone fields
+// EDITABLE
 // ═══════════════════════════════════════════════════════════
 function bindEditable(el) {
   if (el.dataset.bound) return;
@@ -323,7 +326,6 @@ function bindEditable(el) {
     if (!key) return;
     const value = el.textContent.trim();
 
-    // ─── Milestone fields ───
     if (key.startsWith("milestones.")) {
       const parts = key.split(".");
       const idx = parseInt(parts[1]);
@@ -350,7 +352,6 @@ function bindEditable(el) {
       return;
     }
 
-    // ─── Normal text fields ───
     setByPath(story, key, value);
   });
 
@@ -473,7 +474,6 @@ async function saveToGitHub() {
     Object.keys(story).filter(k => k.startsWith("__galleryPreview_")).forEach(k => delete story[k]);
     pendingImages = [];
 
-    // include milestone edits
     story.milestones = MILESTONES;
 
     const json = JSON.stringify(story, null, 2);
@@ -505,7 +505,7 @@ async function putFile(path, base64Content, message) {
   try {
     const r = await fetch(url, { headers });
     if (r.ok) { const d = await r.json(); sha = d.sha; }
-  } catch {}
+  } catch (err) {}
 
   const body = { message, content: base64Content, branch: CONFIG.branch };
   if (sha) body.sha = sha;
@@ -539,10 +539,12 @@ function changeMusic() {
     pendingImages.push({ name, base64, path });
     story.songFile = path;
     story.songTitle = file.name.replace(/\.[^.]+$/, "");
-    document.getElementById("musicTitle").textContent = story.songTitle;
+    const mt = document.getElementById("musicTitle");
+    if (mt) mt.textContent = story.songTitle;
     const audio = document.getElementById("bgMusic");
-    audio.src = dataUrl;
-    document.getElementById("musicPlayer").classList.remove("hidden");
+    if (audio) audio.src = dataUrl;
+    const mp = document.getElementById("musicPlayer");
+    if (mp) mp.classList.remove("hidden");
     toast("Music ready — click Save");
   };
   input.click();
@@ -553,20 +555,22 @@ function changeMusic() {
 // ═══════════════════════════════════════════════════════════
 function openEditor() {
   document.body.classList.add("edit-mode");
-  document.getElementById("editToolbar").classList.add("open");
+  const et = document.getElementById("editToolbar");
+  if (et) et.classList.add("open");
   toast("Edit mode — click any text to change it, then Save");
 }
 
 function closeEditor() {
   document.body.classList.remove("edit-mode");
-  document.getElementById("editToolbar").classList.remove("open");
+  const et = document.getElementById("editToolbar");
+  if (et) et.classList.remove("open");
 }
 
 function initMusicPlayer() {
   const audio = document.getElementById("bgMusic");
   const btn = document.getElementById("musicBtn");
   const player = document.getElementById("musicPlayer");
-  if (!btn) return;
+  if (!btn || !audio || !player) return;
   const playIcon = btn.querySelector(".music-icon-play");
   const pauseIcon = btn.querySelector(".music-icon-pause");
 
@@ -574,8 +578,8 @@ function initMusicPlayer() {
     if (!audio.src) return;
     audio.play().then(() => {
       player.classList.add("playing");
-      playIcon.classList.add("hidden");
-      pauseIcon.classList.remove("hidden");
+      if (playIcon) playIcon.classList.add("hidden");
+      if (pauseIcon) pauseIcon.classList.remove("hidden");
     }).catch(() => {});
   };
   document.addEventListener("click", tryPlay, { once: true });
@@ -586,14 +590,14 @@ function initMusicPlayer() {
     if (audio.paused) {
       audio.play().then(() => {
         player.classList.add("playing");
-        playIcon.classList.add("hidden");
-        pauseIcon.classList.remove("hidden");
+        if (playIcon) playIcon.classList.add("hidden");
+        if (pauseIcon) pauseIcon.classList.remove("hidden");
       }).catch(() => {});
     } else {
       audio.pause();
       player.classList.remove("playing");
-      playIcon.classList.remove("hidden");
-      pauseIcon.classList.add("hidden");
+      if (playIcon) playIcon.classList.remove("hidden");
+      if (pauseIcon) pauseIcon.classList.add("hidden");
     }
   });
 }
@@ -627,17 +631,19 @@ function initSurprise() {
       t.style.color = "var(--pink-soft)";
     }
     const rain = document.getElementById("heartRain");
-    const hearts = ["❤","💕","💖","💗","💘","💝","🌸","✨"];
-    for (let i = 0; i < 50; i++) {
-      const h = document.createElement("div");
-      h.className = "heart-drop";
-      h.textContent = hearts[Math.floor(Math.random() * hearts.length)];
-      h.style.left = Math.random() * 100 + "vw";
-      h.style.fontSize = (18 + Math.random() * 24) + "px";
-      h.style.animationDuration = (3 + Math.random() * 3) + "s";
-      h.style.animationDelay = (Math.random() * 1.5) + "s";
-      rain.appendChild(h);
-      setTimeout(() => h.remove(), 8000);
+    if (rain) {
+      const hearts = ["❤","💕","💖","💗","💘","💝","🌸","✨"];
+      for (let i = 0; i < 50; i++) {
+        const h = document.createElement("div");
+        h.className = "heart-drop";
+        h.textContent = hearts[Math.floor(Math.random() * hearts.length)];
+        h.style.left = Math.random() * 100 + "vw";
+        h.style.fontSize = (18 + Math.random() * 24) + "px";
+        h.style.animationDuration = (3 + Math.random() * 3) + "s";
+        h.style.animationDelay = (Math.random() * 1.5) + "s";
+        rain.appendChild(h);
+        setTimeout(() => h.remove(), 8000);
+      }
     }
     const sp = btn.querySelector("span");
     if (sp) sp.textContent = "I love you ❤️";
@@ -680,7 +686,7 @@ function openLightbox(src) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// BOOT
+// DELEGATED CLICKS + BOOT
 // ═══════════════════════════════════════════════════════════
 document.addEventListener("DOMContentLoaded", async () => {
   checkEditorAccess();
@@ -727,7 +733,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Delegated clicks
   document.addEventListener("click", (e) => {
     const t = e.target;
     if (!t.dataset || !t.dataset.act) return;
@@ -788,20 +793,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Block right-click save on images
   document.addEventListener("contextmenu", (e) => {
     if (e.target.tagName === "IMG") e.preventDefault();
   });
 
-  // Hide loader
-  setTimeout(() => {
-    const l = document.getElementById("loader");
-    if (l) l.classList.add("hidden");
-  }, 900);
-
-  // Refresh milestones hourly
-  setInterval(renderMilestones, 3600 * 1000);
-});
-  // Refresh milestones hourly
   setInterval(renderMilestones, 3600 * 1000);
 });
