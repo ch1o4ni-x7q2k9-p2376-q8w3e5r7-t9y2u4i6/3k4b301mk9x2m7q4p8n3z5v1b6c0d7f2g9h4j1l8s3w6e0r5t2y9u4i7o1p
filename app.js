@@ -466,7 +466,79 @@ function saveToGitHub() {
 
   // Now upload any pending images (or songs)
   var uploads = pendingImages.map(function (img) {
-    return putFile(img.path, img.base64, "Add " + img.name);
+    return function putFile(path, base64Content, message) {
+  var url = API + "/repos/" + CONFIG.owner + "/" + CONFIG.repo + "/contents/" + path;
+  var headers = {
+    "Authorization": "Bearer " + CONFIG.token,
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "Content-Type": "application/json"
+  };
+
+  // Step 1: fetch current SHA (if file exists) — from the plain URL, no query params
+  return fetch(url, { headers: headers, cache: "no-store" })
+    .then(function (r) {
+      if (r.status === 404) return null;      // file doesn't exist — create it
+      if (r.status === 200) return r.json();  // file exists
+      return null;
+    })
+    .catch(function () { return null; })
+    .then(function (existing) {
+      var body = {
+        message: message,
+        content: base64Content,
+        branch: CONFIG.branch
+      };
+      // Only send SHA if the file actually exists
+      if (existing && existing.sha) {
+        body.sha = existing.sha;
+      }
+
+      // Step 2: PUT the file (create or update)
+      return fetch(url, {
+        method: "PUT",
+        headers: headers,
+        body: JSON.stringify(body)
+      });
+    })
+    .then(function (res) {
+      if (res.ok) return res.json();
+
+      return res.json().catch(function () { return {}; }).then(function (err) {
+        var msg = err.message || ("HTTP " + res.status);
+
+        // If SHA conflict, wait briefly and retry once
+        if (msg.indexOf("does not match") !== -1 || msg.indexOf("is at") !== -1) {
+          return new Promise(function (resolve) { setTimeout(resolve, 500); })
+            .then(function () {
+              return fetch(url, { headers: headers, cache: "no-store" });
+            })
+            .then(function (r2) { return r2.ok ? r2.json() : null; })
+            .then(function (existing2) {
+              var body2 = {
+                message: message + " (retry)",
+                content: base64Content,
+                branch: CONFIG.branch
+              };
+              if (existing2 && existing2.sha) body2.sha = existing2.sha;
+              return fetch(url, {
+                method: "PUT",
+                headers: headers,
+                body: JSON.stringify(body2)
+              });
+            })
+            .then(function (res2) {
+              if (res2.ok) return res2.json();
+              return res2.json().catch(function () { return {}; }).then(function (e2) {
+                throw new Error(e2.message || ("HTTP " + res2.status));
+              });
+            });
+        }
+
+        throw new Error(msg);
+      });
+    });
+}(img.path, img.base64, "Add " + img.name);
   });
 
   return Promise.all(uploads)
