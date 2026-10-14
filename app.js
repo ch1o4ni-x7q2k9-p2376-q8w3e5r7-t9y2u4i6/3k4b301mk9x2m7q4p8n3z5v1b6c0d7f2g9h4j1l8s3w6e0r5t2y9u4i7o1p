@@ -170,14 +170,17 @@ function checkEditorAccess() {
 // LOAD STORY
 // ═══════════════════════════════════════════════════════════
 function loadStory() {
-  var url = RAW(CONFIG.owner, CONFIG.repo, CONFIG.branch) + "/" + CONFIG.storyPath + "?t=" + Date.now();
+  var url = API + "/repos/" + CONFIG.owner + "/" + CONFIG.repo + "/contents/" + CONFIG.storyPath + "?ref=" + CONFIG.branch + "&t=" + Date.now();
   return fetch(url, { cache: "no-store" })
     .then(function (res) {
       if (!res.ok) throw new Error("HTTP " + res.status);
       return res.json();
     })
     .then(function (data) {
-      story = Object.assign({}, FALLBACK, data);
+      var decoded = atob(data.content.replace(/\n/g, ""));
+      var json = decodeURIComponent(escape(decoded));
+      var parsed = JSON.parse(json);
+      story = Object.assign({}, FALLBACK, parsed);
       if (Array.isArray(story.milestones) && story.milestones.length) {
         MILESTONES = story.milestones;
       }
