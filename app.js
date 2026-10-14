@@ -68,80 +68,7 @@ function setSavePill(text, cls) {
   p.className = "save-pill " + (cls || "");
   p.classList.remove("hidden");
 }
-// ═══════════════════════════════════════════════════════════
-// MILESTONE COUNTDOWNS
-// ═══════════════════════════════════════════════════════════
-var MILESTONES = [
-  { emoji: "💕", title: "Our anniversary", date: "2026-06-19", repeatYearly: true },
-  { emoji: "🎂", title: "Her birthday", date: "2026-08-15", repeatYearly: true },
-  { emoji: "🎉", title: "My birthday", date: "2026-03-04", repeatYearly: true }
-];
 
-function nextOccurrence(dateStr, repeatYearly) {
-  var today = new Date();
-  today.setHours(0, 0, 0, 0);
-  var parts = dateStr.split("-");
-  var target = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-  if (repeatYearly) {
-    while (target < today) target.setFullYear(target.getFullYear() + 1);
-  }
-  return target;
-}
-
-function daysUntil(target) {
-  var today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((target - today) / 86400000);
-}
-
-function renderMilestones() {
-  var wrap = document.getElementById("milestones");
-  if (!wrap) return;
-  wrap.innerHTML = "";
-
-  MILESTONES.forEach(function (m, i) {
-    var target = nextOccurrence(m.date, m.repeatYearly);
-    var diff = daysUntil(target);
-
-    var num, unit, cls = "";
-    if (diff === 0) {
-      num = "Today";
-      unit = "celebrate!";
-      cls = "milestone-today";
-    } else if (diff < 0) {
-      num = Math.abs(diff);
-      unit = "days ago";
-      cls = "milestone-past";
-    } else {
-      num = diff;
-      unit = diff === 1 ? "day to go" : "days to go";
-    }
-
-    var el = document.createElement("div");
-    el.className = "milestone-card " + cls;
-    el.innerHTML =
-      '<button class="milestone-remove" data-act="rm-milestone" data-i="' + i + '" title="Remove">✕</button>' +
-      '<span class="milestone-emoji editable" data-key="milestones.' + i + '.emoji">' + (m.emoji || "⭐") + '</span>' +
-      '<p class="milestone-title editable" data-key="milestones.' + i + '.title">' + esc(m.title || "") + '</p>' +
-      '<p class="milestone-date editable" data-key="milestones.' + i + '.date">' + target.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) + '</p>' +
-      '<p class="milestone-num">' + num + '</p>' +
-      '<span class="milestone-unit">' + unit + '</span>';
-    wrap.appendChild(el);
-  });
-
-  wrap.querySelectorAll(".editable").forEach(bindEditable);
-}
-
-function addMilestone() {
-  MILESTONES.push({
-    emoji: "⭐",
-    title: "New milestone",
-    date: new Date().toISOString().slice(0, 10),
-    repeatYearly: true
-  });
-  renderMilestones();
-  toast("Milestone added");
-} 
 function esc(s) {
   var d = document.createElement("div");
   d.textContent = s == null ? "" : s;
@@ -177,11 +104,8 @@ function loadStory() {
       if (!res.ok) throw new Error("HTTP " + res.status);
       return res.json();
     })
-       .then(function (data) {
+    .then(function (data) {
       story = Object.assign({}, FALLBACK, data);
-      if (Array.isArray(story.milestones) && story.milestones.length) {
-        MILESTONES = story.milestones;
-      }
     })
     .catch(function (e) {
       console.error("story.json failed:", e);
@@ -304,41 +228,13 @@ function bindEditable(el) {
     sel.removeAllRanges();
     sel.addRange(range);
   });
+
   el.addEventListener("blur", function () {
     if (!document.body.classList.contains("edit-mode")) return;
     el.removeAttribute("contenteditable");
     var key = el.dataset.key;
     if (!key) return;
     var value = el.textContent.trim();
-
-    // Special handling for milestone fields
-    if (key.indexOf("milestones.") === 0) {
-      var parts = key.split(".");
-      var idx = parseInt(parts[1]);
-      var field = parts[2];
-      if (!MILESTONES[idx]) return;
-
-      if (field === "date") {
-        var parsed = new Date(value);
-        if (isNaN(parsed.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-          parsed = new Date(value + "T00:00:00");
-        }
-        if (isNaN(parsed.getTime())) {
-          toast("Could not read that date");
-          renderMilestones();
-          return;
-        }
-        MILESTONES[idx].date = parsed.toISOString().slice(0, 10);
-      } else if (field === "emoji") {
-        MILESTONES[idx].emoji = value || "⭐";
-      } else if (field === "title") {
-        MILESTONES[idx].title = value || "Untitled";
-      }
-      renderMilestones();
-      return;
-    }
-
-    // Normal text fields
     setByPath(story, key, value);
   });
 
@@ -435,6 +331,87 @@ function addPhotosFromInput() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// PUT FILE — fixed version
+// ═══════════════════════════════════════════════════════════
+function putFile(path, base64Content, message) {
+  var url = API + "/repos/" + CONFIG.owner + "/" + CONFIG.repo + "/contents/" + path;
+  var headers = {
+    "Authorization": "Bearer " + CONFIG.token,
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "Content-Type": "application/json"
+  };
+
+  // Step 1: Get current SHA if the file already exists
+  return fetch(url + "?ref=" + CONFIG.branch, {
+    method: "GET",
+    headers: headers,
+    cache: "no-store"
+  })
+  .then(function (r) {
+    if (r.status === 200) return r.json();
+    return null;  // 404 or anything else — treat as "new file"
+  })
+  .catch(function () { return null; })
+  .then(function (existing) {
+    var body = {
+      message: message,
+      content: base64Content,
+      branch: CONFIG.branch
+    };
+    if (existing && existing.sha) body.sha = existing.sha;
+
+    console.log("PUT to", path, "sha:", body.sha || "(new file)");
+
+    return fetch(url, {
+      method: "PUT",
+      headers: headers,
+      body: JSON.stringify(body)
+    });
+  })
+  .then(function (res) {
+    return res.json().catch(function () { return {}; }).then(function (data) {
+      if (res.ok) {
+        console.log("PUT success:", path, res.status);
+        return data;
+      }
+      var msg = data.message || ("HTTP " + res.status);
+
+      // If SHA mismatch, retry once after refetching
+      if (msg.indexOf("does not match") !== -1 || msg.indexOf("is at") !== -1 || res.status === 409) {
+        console.warn("SHA mismatch on " + path + ", retrying...");
+        return fetch(url + "?ref=" + CONFIG.branch, {
+          method: "GET", headers: headers, cache: "no-store"
+        })
+        .then(function (r2) { return r2.status === 200 ? r2.json() : null; })
+        .then(function (existing2) {
+          var body2 = {
+            message: message + " (retry)",
+            content: base64Content,
+            branch: CONFIG.branch
+          };
+          if (existing2 && existing2.sha) body2.sha = existing2.sha;
+          return fetch(url, {
+            method: "PUT", headers: headers, body: JSON.stringify(body2)
+          });
+        })
+        .then(function (res2) {
+          return res2.json().catch(function () { return {}; }).then(function (d2) {
+            if (res2.ok) {
+              console.log("PUT retry success:", path);
+              return d2;
+            }
+            throw new Error((d2.message || ("HTTP " + res2.status)) + " (retry)");
+          });
+        });
+      }
+
+      throw new Error(msg);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
 // SAVE
 // ═══════════════════════════════════════════════════════════
 function saveToGitHub() {
@@ -443,11 +420,10 @@ function saveToGitHub() {
   CONFIG.token = token;
 
   setSavePill("Saving...", "saving");
+  console.log("=== SAVE STARTED ===");
+  console.log("storyPath:", CONFIG.storyPath);
 
-  // Snapshot the current state of everything BEFORE async work
-  story.milestones = MILESTONES;
-
-  // Clean up moment previews and gallery previews FIRST (synchronous)
+  // Clean up previews synchronously so story is ready
   (story.moments || []).forEach(function (m) {
     if (m.__pendingPhoto) { m.photo = m.__pendingPhoto; delete m.__pendingPhoto; }
     if (typeof m.photo === "string" && m.photo.indexOf("data:") === 0) m.photo = "";
@@ -464,155 +440,35 @@ function saveToGitHub() {
     if (k.indexOf("__galleryPreview_") === 0) delete story[k];
   });
 
-  // Now upload any pending images (or songs)
+  // Upload pending images first
   var uploads = pendingImages.map(function (img) {
-    return function putFile(path, base64Content, message) {
-  var url = API + "/repos/" + CONFIG.owner + "/" + CONFIG.repo + "/contents/" + path;
-  var headers = {
-    "Authorization": "Bearer " + CONFIG.token,
-    "Accept": "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-    "Content-Type": "application/json"
-  };
-
-  // Step 1: fetch current SHA (if file exists) — from the plain URL, no query params
-  return fetch(url, { headers: headers, cache: "no-store" })
-    .then(function (r) {
-      if (r.status === 404) return null;      // file doesn't exist — create it
-      if (r.status === 200) return r.json();  // file exists
-      return null;
-    })
-    .catch(function () { return null; })
-    .then(function (existing) {
-      var body = {
-        message: message,
-        content: base64Content,
-        branch: CONFIG.branch
-      };
-      // Only send SHA if the file actually exists
-      if (existing && existing.sha) {
-        body.sha = existing.sha;
-      }
-
-      // Step 2: PUT the file (create or update)
-      return fetch(url, {
-        method: "PUT",
-        headers: headers,
-        body: JSON.stringify(body)
-      });
-    })
-    .then(function (res) {
-      if (res.ok) return res.json();
-
-      return res.json().catch(function () { return {}; }).then(function (err) {
-        var msg = err.message || ("HTTP " + res.status);
-
-        // If SHA conflict, wait briefly and retry once
-        if (msg.indexOf("does not match") !== -1 || msg.indexOf("is at") !== -1) {
-          return new Promise(function (resolve) { setTimeout(resolve, 500); })
-            .then(function () {
-              return fetch(url, { headers: headers, cache: "no-store" });
-            })
-            .then(function (r2) { return r2.ok ? r2.json() : null; })
-            .then(function (existing2) {
-              var body2 = {
-                message: message + " (retry)",
-                content: base64Content,
-                branch: CONFIG.branch
-              };
-              if (existing2 && existing2.sha) body2.sha = existing2.sha;
-              return fetch(url, {
-                method: "PUT",
-                headers: headers,
-                body: JSON.stringify(body2)
-              });
-            })
-            .then(function (res2) {
-              if (res2.ok) return res2.json();
-              return res2.json().catch(function () { return {}; }).then(function (e2) {
-                throw new Error(e2.message || ("HTTP " + res2.status));
-              });
-            });
-        }
-
-        throw new Error(msg);
-      });
-    });
-}(img.path, img.base64, "Add " + img.name);
+    console.log("Uploading image:", img.path);
+    return putFile(img.path, img.base64, "Add " + img.name);
   });
 
   return Promise.all(uploads)
     .then(function () {
+      console.log("All images uploaded. Now saving story file:", CONFIG.storyPath);
       pendingImages = [];
 
-      // Commit story.json LAST, after all uploads succeeded
       var json = JSON.stringify(story, null, 2);
+      console.log("story size:", json.length, "bytes");
+
       if (json.length > 5000000) throw new Error("story.json too large");
+
       var base64 = btoa(unescape(encodeURIComponent(json)));
       return putFile(CONFIG.storyPath, base64, "Update story");
     })
     .then(function () {
+      console.log("=== SAVE COMPLETE ===");
       setSavePill("Saved", "saved");
       toast("Saved!");
     })
     .catch(function (e) {
-      console.error("Save error:", e);
+      console.error("=== SAVE FAILED ===", e);
       setSavePill("Error: " + e.message, "error");
       toast("Save failed: " + e.message);
     });
-}
-function putFile(path, base64Content, message) {
-  var url = API + "/repos/" + CONFIG.owner + "/" + CONFIG.repo + "/contents/" + path;
-  var headers = {
-    "Authorization": "Bearer " + CONFIG.token,
-    "Accept": "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-    "Content-Type": "application/json"
-  };
-
-  // Retry up to 3 times if we hit a SHA mismatch
-  function attempt(triesLeft) {
-    // 1) Always fetch the *current* SHA from GitHub (no cache)
-    var shaUrl = url + "?ref=" + CONFIG.branch + "&t=" + Date.now();
-    return fetch(shaUrl, { headers: headers, cache: "no-store" })
-      .then(function (r) {
-        if (r.status === 404) return null;   // file doesn't exist yet — create
-        if (!r.ok) return null;
-        return r.json();
-      })
-      .then(function (existing) {
-        var body = {
-          message: message,
-          content: base64Content,
-          branch: CONFIG.branch
-        };
-        if (existing && existing.sha) body.sha = existing.sha;
-
-        return fetch(url, {
-          method: "PUT",
-          headers: headers,
-          body: JSON.stringify(body)
-        });
-      })
-      .then(function (res) {
-        if (res.ok) return res.json();
-
-        return res.json().catch(function () { return {}; }).then(function (err) {
-          var msg = err.message || ("HTTP " + res.status);
-
-          // If it's a SHA conflict, wait a moment and retry
-          if ((msg.indexOf("does not match") !== -1 || msg.indexOf("is at") !== -1) && triesLeft > 0) {
-            return new Promise(function (resolve) {
-              setTimeout(function () { resolve(attempt(triesLeft - 1)); }, 800);
-            });
-          }
-
-          throw new Error(msg);
-        });
-      });
-  }
-
-  return attempt(3);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -813,13 +669,6 @@ document.addEventListener("click", function (e) {
     story.gallery.splice(i, 1);
     renderAll();
   }
-    if (t.dataset.act === "rm-milestone") {
-    e.stopPropagation();
-    if (!confirm("Remove this milestone?")) return;
-    MILESTONES.splice(i, 1);
-    renderMilestones();
-    toast("Milestone removed");
-  }
   if (t.dataset.act === "pick-moment") {
     e.stopPropagation();
     pickImage(function (o) {
@@ -856,7 +705,6 @@ document.addEventListener("DOMContentLoaded", function () {
   checkEditorAccess();
   loadStory().then(function () {
     renderAll();
-    renderMilestones();
     initMusicPlayer();
     initCounter();
     initSurprise();
