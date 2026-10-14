@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-//  Our Story
+//  Our Story — complete
 // ═══════════════════════════════════════════════════════════
 
 const API = "https://api.github.com";
@@ -76,6 +76,78 @@ function esc(s) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// MILESTONES
+// ═══════════════════════════════════════════════════════════
+var MILESTONES = [
+  { emoji: "💕", title: "Our anniversary", date: "2026-06-19", repeatYearly: true },
+  { emoji: "🎂", title: "Her birthday", date: "2026-08-15", repeatYearly: true },
+  { emoji: "🎉", title: "My birthday", date: "2026-03-04", repeatYearly: true }
+];
+
+function nextOccurrence(dateStr, repeatYearly) {
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  var parts = dateStr.split("-");
+  var target = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  if (repeatYearly) {
+    while (target < today) target.setFullYear(target.getFullYear() + 1);
+  }
+  return target;
+}
+
+function daysUntil(target) {
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((target - today) / 86400000);
+}
+
+function renderMilestones() {
+  var wrap = document.getElementById("milestones");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  MILESTONES.forEach(function (m, i) {
+    var target = nextOccurrence(m.date, m.repeatYearly);
+    var diff = daysUntil(target);
+
+    var num, unit, cls = "";
+    if (diff === 0) {
+      num = "Today"; unit = "celebrate!"; cls = "milestone-today";
+    } else if (diff < 0) {
+      num = Math.abs(diff); unit = "days ago"; cls = "milestone-past";
+    } else {
+      num = diff; unit = diff === 1 ? "day to go" : "days to go";
+    }
+
+    var el = document.createElement("div");
+    el.className = "milestone-card " + cls;
+    el.innerHTML =
+      '<button class="milestone-remove" data-act="rm-milestone" data-i="' + i + '" title="Remove">✕</button>' +
+      '<span class="milestone-emoji editable" data-key="milestones.' + i + '.emoji">' + (m.emoji || "⭐") + '</span>' +
+      '<p class="milestone-title editable" data-key="milestones.' + i + '.title">' + esc(m.title || "") + '</p>' +
+      '<p class="milestone-date editable" data-key="milestones.' + i + '.date">' + target.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) + '</p>' +
+      '<p class="milestone-num">' + num + '</p>' +
+      '<span class="milestone-unit">' + unit + '</span>';
+    wrap.appendChild(el);
+  });
+
+  wrap.querySelectorAll(".editable").forEach(bindEditable);
+}
+
+function addMilestone() {
+  var now = new Date();
+  var y = now.getFullYear();
+  var mo = String(now.getMonth() + 1).padStart(2, "0");
+  var d = String(now.getDate()).padStart(2, "0");
+  MILESTONES.push({
+    emoji: "⭐", title: "New milestone",
+    date: y + "-" + mo + "-" + d, repeatYearly: true
+  });
+  renderMilestones();
+  toast("Milestone added");
+}
+
+// ═══════════════════════════════════════════════════════════
 // EDITOR ACCESS
 // ═══════════════════════════════════════════════════════════
 function checkEditorAccess() {
@@ -106,6 +178,9 @@ function loadStory() {
     })
     .then(function (data) {
       story = Object.assign({}, FALLBACK, data);
+      if (Array.isArray(story.milestones) && story.milestones.length) {
+        MILESTONES = story.milestones;
+      }
     })
     .catch(function (e) {
       console.error("story.json failed:", e);
@@ -123,6 +198,7 @@ function renderAll() {
     if (!key || key === "letterBody") return;
     if (key.indexOf("moments.") === 0) return;
     if (key.indexOf("letterBody.") === 0) return;
+    if (key.indexOf("milestones.") === 0) return;
     if (story[key] !== undefined && story[key] !== null) {
       el.textContent = story[key];
     }
@@ -235,6 +311,36 @@ function bindEditable(el) {
     var key = el.dataset.key;
     if (!key) return;
     var value = el.textContent.trim();
+
+    if (key.indexOf("milestones.") === 0) {
+      var parts = key.split(".");
+      var idx = parseInt(parts[1]);
+      var field = parts[2];
+      if (!MILESTONES[idx]) return;
+
+      if (field === "date") {
+        var parsed = new Date(value);
+        if (isNaN(parsed.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+          parsed = new Date(value + "T00:00:00");
+        }
+        if (isNaN(parsed.getTime())) {
+          toast("Could not read that date");
+          renderMilestones();
+          return;
+        }
+        var y = parsed.getFullYear();
+        var m = String(parsed.getMonth() + 1).padStart(2, "0");
+        var d = String(parsed.getDate()).padStart(2, "0");
+        MILESTONES[idx].date = y + "-" + m + "-" + d;
+      } else if (field === "emoji") {
+        MILESTONES[idx].emoji = value || "⭐";
+      } else if (field === "title") {
+        MILESTONES[idx].title = value || "Untitled";
+      }
+      renderMilestones();
+      return;
+    }
+
     setByPath(story, key, value);
   });
 
@@ -331,7 +437,7 @@ function addPhotosFromInput() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// PUT FILE — fixed version
+// PUT FILE
 // ═══════════════════════════════════════════════════════════
 function putFile(path, base64Content, message) {
   var url = API + "/repos/" + CONFIG.owner + "/" + CONFIG.repo + "/contents/" + path;
@@ -342,66 +448,35 @@ function putFile(path, base64Content, message) {
     "Content-Type": "application/json"
   };
 
-  // Step 1: Get current SHA if the file already exists
   return fetch(url + "?ref=" + CONFIG.branch, {
-    method: "GET",
-    headers: headers,
-    cache: "no-store"
+    method: "GET", headers: headers, cache: "no-store"
   })
-  .then(function (r) {
-    if (r.status === 200) return r.json();
-    return null;  // 404 or anything else — treat as "new file"
-  })
+  .then(function (r) { return r.status === 200 ? r.json() : null; })
   .catch(function () { return null; })
   .then(function (existing) {
-    var body = {
-      message: message,
-      content: base64Content,
-      branch: CONFIG.branch
-    };
+    var body = { message: message, content: base64Content, branch: CONFIG.branch };
     if (existing && existing.sha) body.sha = existing.sha;
-
-    console.log("PUT to", path, "sha:", body.sha || "(new file)");
-
-    return fetch(url, {
-      method: "PUT",
-      headers: headers,
-      body: JSON.stringify(body)
-    });
+    return fetch(url, { method: "PUT", headers: headers, body: JSON.stringify(body) });
   })
   .then(function (res) {
     return res.json().catch(function () { return {}; }).then(function (data) {
-      if (res.ok) {
-        console.log("PUT success:", path, res.status);
-        return data;
-      }
+      if (res.ok) return data;
       var msg = data.message || ("HTTP " + res.status);
 
-      // If SHA mismatch, retry once after refetching
       if (msg.indexOf("does not match") !== -1 || msg.indexOf("is at") !== -1 || res.status === 409) {
-        console.warn("SHA mismatch on " + path + ", retrying...");
         return fetch(url + "?ref=" + CONFIG.branch, {
           method: "GET", headers: headers, cache: "no-store"
         })
         .then(function (r2) { return r2.status === 200 ? r2.json() : null; })
-        .then(function (existing2) {
-          var body2 = {
-            message: message + " (retry)",
-            content: base64Content,
-            branch: CONFIG.branch
-          };
-          if (existing2 && existing2.sha) body2.sha = existing2.sha;
-          return fetch(url, {
-            method: "PUT", headers: headers, body: JSON.stringify(body2)
-          });
+        .then(function (e2) {
+          var b2 = { message: message + " (retry)", content: base64Content, branch: CONFIG.branch };
+          if (e2 && e2.sha) b2.sha = e2.sha;
+          return fetch(url, { method: "PUT", headers: headers, body: JSON.stringify(b2) });
         })
-        .then(function (res2) {
-          return res2.json().catch(function () { return {}; }).then(function (d2) {
-            if (res2.ok) {
-              console.log("PUT retry success:", path);
-              return d2;
-            }
-            throw new Error((d2.message || ("HTTP " + res2.status)) + " (retry)");
+        .then(function (r2) {
+          return r2.json().catch(function () { return {}; }).then(function (d2) {
+            if (r2.ok) return d2;
+            throw new Error((d2.message || ("HTTP " + r2.status)) + " (retry)");
           });
         });
       }
@@ -421,41 +496,33 @@ function saveToGitHub() {
 
   setSavePill("Saving...", "saving");
   console.log("=== SAVE STARTED ===");
-  console.log("storyPath:", CONFIG.storyPath);
 
-  // Clean up previews synchronously so story is ready
+  story.milestones = MILESTONES;
+
   (story.moments || []).forEach(function (m) {
     if (m.__pendingPhoto) { m.photo = m.__pendingPhoto; delete m.__pendingPhoto; }
     if (typeof m.photo === "string" && m.photo.indexOf("data:") === 0) m.photo = "";
     delete m.__preview;
   });
-
   if (Array.isArray(story.gallery)) {
     story.gallery = story.gallery.filter(function (src) {
       return !(typeof src === "string" && src.indexOf("data:") === 0);
     });
   }
-
   Object.keys(story).forEach(function (k) {
     if (k.indexOf("__galleryPreview_") === 0) delete story[k];
   });
 
-  // Upload pending images first
   var uploads = pendingImages.map(function (img) {
-    console.log("Uploading image:", img.path);
     return putFile(img.path, img.base64, "Add " + img.name);
   });
 
   return Promise.all(uploads)
     .then(function () {
-      console.log("All images uploaded. Now saving story file:", CONFIG.storyPath);
       pendingImages = [];
-
       var json = JSON.stringify(story, null, 2);
-      console.log("story size:", json.length, "bytes");
-
+      console.log("story size:", json.length, "moments:", (story.moments || []).length);
       if (json.length > 5000000) throw new Error("story.json too large");
-
       var base64 = btoa(unescape(encodeURIComponent(json)));
       return putFile(CONFIG.storyPath, base64, "Update story");
     })
@@ -593,9 +660,7 @@ function initSurprise() {
         h.style.animationDuration = (3 + Math.random() * 3) + "s";
         h.style.animationDelay = (Math.random() * 1.5) + "s";
         rain.appendChild(h);
-        (function (node) {
-          setTimeout(function () { node.remove(); }, 8000);
-        })(h);
+        (function (node) { setTimeout(function () { node.remove(); }, 8000); })(h);
       }
     }
     var sp = btn.querySelector("span");
@@ -669,6 +734,13 @@ document.addEventListener("click", function (e) {
     story.gallery.splice(i, 1);
     renderAll();
   }
+  if (t.dataset.act === "rm-milestone") {
+    e.stopPropagation();
+    if (!confirm("Remove this milestone?")) return;
+    MILESTONES.splice(i, 1);
+    renderMilestones();
+    toast("Milestone removed");
+  }
   if (t.dataset.act === "pick-moment") {
     e.stopPropagation();
     pickImage(function (o) {
@@ -705,6 +777,7 @@ document.addEventListener("DOMContentLoaded", function () {
   checkEditorAccess();
   loadStory().then(function () {
     renderAll();
+    renderMilestones();
     initMusicPlayer();
     initCounter();
     initSurprise();
